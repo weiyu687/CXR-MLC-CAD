@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import subprocess
+import shutil
 import sys
 import tempfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -34,7 +35,7 @@ def main():
         torch.save({'state_dict':build_model('resnet18').state_dict(),'config':{'model':'resnet18','size':64}},checkpoint)
         frozen={'validation':{'gates':[.5]*10,'macro_auc':None,'note':'synthetic test; no measured validation score'},
                 'checkpoint_sha256':[hashlib.sha256(checkpoint.read_bytes()).hexdigest()],
-                'arguments':{'tta':False,'aggregation':'weighted'}}
+                'arguments':{'tta':False,'aggregation':'weighted','batch_size':2}}
         calibration=tmp/'frozen.json';calibration.write_text(json.dumps(frozen))
         def run(arguments,cwd=project):
             result=subprocess.run([sys.executable,*map(str,arguments)],cwd=cwd,env=env,capture_output=True,text=True)
@@ -51,9 +52,31 @@ def main():
         manifest=json.loads((bundle/'manifest.json').read_text())
         for name,expected in manifest['files'].items():
             assert hashlib.sha256((bundle/name).read_bytes()).hexdigest()==expected
+        valid=pd.read_csv(root/'test.csv')
+        valid['Dicom_id']=['v1','v2','v3']
+        valid['Predict_class']=['1;2;3;4;5;6;7;8;9','1;2;3;4;5;6;7;8;9','10']
+        valid.to_csv(root/'valid.csv',index=False)
+        (cache/'valid').mkdir()
+        for i in range(1,4):shutil.copy2(cache/'test'/f'x{i}.jpg',cache/'valid'/f'v{i}.jpg')
+        calibrated=tmp/'calibrated';new_bundle=tmp/'calibrated_bundle';new_reproduced=tmp/'new_reproduced'
+        run(['predict.py','--checkpoint',checkpoint,'--root',root,'--cache',cache,'--out',calibrated,
+             '--workers','0','--batch-size','2','--export-images'])
+        generated=json.loads((calibrated/'report.json').read_text())
+        assert generated['probability_decimals']==12 and generated['csv_decimal_places']==15
+        assert generated['gate_policy']=='half_step_between_distinct_validation_probabilities'
+        run(['tools/package.py','--checkpoint',checkpoint,'--predictions',calibrated,'--root',root,'--out',new_bundle])
+        only_test=tmp/'only_test';only_test.mkdir()
+        shutil.copy2(root/'test.csv',only_test/'test.csv');shutil.copytree(root/'test',only_test/'test')
+        run(['predict.py','--checkpoint','models/model_1.pt','--calibration','report.json','--root',only_test,
+             '--cache',tmp/'missing_cache','--out',new_reproduced,'--workers','0'],cwd=new_bundle)
+        run(['tools/verify_bundle.py','--bundle',new_bundle,'--root',only_test,
+             '--reproduced',new_reproduced/'submission.csv','--out',tmp/'verification.json'])
+        actual=json.loads((tmp/'verification.json').read_text())
+        assert actual['max_probability_difference']==0 and actual['runtime_recorded']
+        assert not (only_test/'valid.csv').exists()
         frozen['checkpoint_sha256']=['0'*64];calibration.write_text(json.dumps(frozen))
         result=subprocess.run([sys.executable,'predict.py','--checkpoint',str(checkpoint),'--calibration',str(calibration),
                                '--root',str(root),'--out',str(tmp/'must_fail')],cwd=project,env=env,capture_output=True,text=True)
         assert result.returncode!=0 and 'Calibration does not match' in result.stderr
-    print('PASS: test-only frozen calibration, cached/raw packaged reproduction, identical CSV, manifest hashes, mismatched model rejection')
+    print('PASS: legacy and half-step calibration, cached/raw package reproduction, identical CSV, runtime/model binding and test-only inference')
 if __name__=='__main__':main()

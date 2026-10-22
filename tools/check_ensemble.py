@@ -23,9 +23,10 @@ def main():
         result=select(runs,root)
         assert len(result['candidates'])==12
         combined=next(x for x in result['candidates'] if len(x['checkpoints'])==2 and x['aggregation']=='max')
-        assert np.allclose(combined['metrics']['gates'],.9)
-        # Averaging before max would produce .5; production does max before averaging.
-        assert not np.allclose(combined['metrics']['gates'],.5)
+        assert np.allclose(combined['metrics']['gates'],.625)
+        # Pool-then-average yields scores .9/.35 and midpoint .625.
+        # Average-then-pool would yield .5/.35 and midpoint .425.
+        assert not np.allclose(combined['metrics']['gates'],.425)
         restricted=select(runs,root,max_bytes=10)
         assert len(restricted['candidates'])==8
         assert all(len(x['checkpoints'])==1 for x in restricted['candidates'])
@@ -59,5 +60,18 @@ def main():
             select(runs,root,prediction_files=files)
             raise RuntimeError('Shuffled image IDs incorrectly accepted')
         except ValueError as error:assert 'image order' in str(error)
-    print('PASS: pooling order, subset/size gates, deterministic export equivalence and image-order rejection')
+        tie_root=root/'ties';tie_root.mkdir()
+        pd.DataFrame({'Dicom_id':['a','b','c','d'],'Subject_id':['p1','p2','p3','p4'],
+                      'Study_id':['s1','s2','s3','s4'],'ViewPosition':['PA']*4,
+                      'Predict_class':['1;2;3;4;5;6;7;8;9;10','','','1;2;3;4;5;6;7;8;9;10']}).to_csv(tie_root/'valid.csv',index=False)
+        tie_runs=[]
+        for i,values in enumerate([[.9,.7,.5,.3],[.7,.9,.3,.5]]):
+            run=tie_root/f'run_{i}';run.mkdir();tie_runs.append(run)
+            (run/'best.pt').write_bytes(b'synthetic!')
+            np.savez(run/'valid_predictions.npz',probabilities=np.repeat(np.array(values)[:,None],10,axis=1))
+        tied=select(tie_runs,tie_root)
+        assert tied['selected']['checkpoints']==[str(tie_runs[1]/'best.pt')]
+        assert tied['selected']['metrics']['macro_auc']==.5
+        assert np.isclose(tied['selected']['metrics']['macro_f1_tuned'],.8)
+    print('PASS: pooling, size gates, export/runtime alignment and official AUC-then-F1 tie break')
 if __name__=='__main__':main()

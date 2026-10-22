@@ -39,10 +39,29 @@ def main():
     csv=pd.read_csv(bundle/'submission.csv')
     assert csv.groupby('Predict_class').Gate.nunique().eq(1).all()
     gates=csv.groupby('Predict_class').Gate.first().sort_index().values
-    assert np.allclose(gates,report['validation']['gates'],rtol=0,atol=5.1e-9)
+    gate_tolerance=max(1e-15,.51*10**(-report.get('csv_decimal_places',8)))
+    assert np.allclose(gates,report['validation']['gates'],rtol=0,atol=gate_tolerance)
     result={'folder':str(bundle),'files_verified':len(manifest['files']),'model_bytes':model_bytes,
             'submission':checks,'frozen_gates_match':True,'model_hashes_match':True,
             'independent_inference_reproduced':False,'T4_verified':False}
+    if report.get('gate_policy')=='half_step_between_distinct_validation_probabilities':
+        scale=10**report['probability_decimals']
+        p=csv.Probability.values;g=csv.Gate.values
+        assert np.all(np.abs(p*scale-np.round(p*scale))<.001)
+        assert np.all(np.abs(g*scale-np.floor(g*scale)-.5)<.001)
+        assert not np.any(p==g)
+        result.update(emitted_threshold_equalities=0,disjoint_probability_and_gate_grids=True)
+    if (bundle/'latency.json').exists():
+        assert 'latency.json' in manifest['files']
+        latency=json.loads((bundle/'latency.json').read_text(encoding='utf-8'))
+        assert latency['checkpoint_sha256']==hashes
+        assert latency['checkpoint_bytes']==model_bytes and latency['models']==len(info)
+        assert latency['runtime']==report['runtime'] and latency['tta']==report['arguments']['tta']
+        assert latency['batch_size']==1 and latency['cache'] is False
+        assert latency['test_csv_sha256']==hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()
+        assert latency['samples']>=10 and np.isfinite(latency['max_ms']) and latency['max_ms']<=100
+        result.update(local_latency_sample_limit_passed=True,local_latency_samples=latency['samples'],
+                      local_latency_max_ms=latency['max_ms'])
     if args.reproduced:
         validate_submission(args.reproduced,args.root)
         reproduced_report=json.loads(Path(args.reproduced).with_name('report.json').read_text(encoding='utf-8'))
@@ -50,6 +69,8 @@ def main():
         assert reproduced_report['validation_recomputed'] is False,'Reproduction must use frozen calibration'
         for key in ['aggregation','tta','batch_size']:
             assert reproduced_report['arguments'][key]==report['arguments'][key]
+        for key,default in [('probability_decimals',None),('csv_decimal_places',8),('gate_policy','legacy_threshold_value')]:
+            assert reproduced_report.get(key,default)==report.get(key,default)
         if report.get('runtime'):
             assert reproduced_report.get('runtime_matches_calibration') is True,'Reproduction runtime differs'
         a=csv.sort_values(['Study_id','Predict_class']).reset_index(drop=True)

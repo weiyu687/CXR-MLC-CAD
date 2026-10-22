@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 from src.data import Images,aggregate
 from src.model import build_model
-from src.metrics import evaluate
+from src.metrics import evaluate,submission_probabilities,PROBABILITY_DECIMALS,CSV_DECIMAL_PLACES
 from train import predict
 from src.inference import configure_deterministic_inference,runtime_information
 
@@ -72,16 +72,23 @@ def main():
         del model
     metrics=frozen['validation'] if frozen else evaluate(valid_y,np.mean(all_probs['valid'],axis=0))
     probs=np.mean(all_probs['test'],axis=0)
+    probability_decimals=frozen.get('probability_decimals') if frozen else PROBABILITY_DECIMALS
+    csv_decimal_places=frozen.get('csv_decimal_places',8) if frozen else CSV_DECIMAL_PLACES
+    if probability_decimals is not None:
+        if probability_decimals!=PROBABILITY_DECIMALS:raise ValueError('Unsupported probability precision policy')
+        probs=submission_probabilities(probs)
     runtime=runtime_information(device)
     s=pd.DataFrame({'Study_id':np.repeat(test_ids,10),'Predict_class':np.tile(np.arange(1,11),len(test_ids)),
                     'Probability':probs.reshape(-1),'Gate':np.tile(metrics['gates'],len(test_ids))})
     meta=pd.read_csv(Path(args.root)/'test.csv').drop_duplicates('Study_id').set_index('Study_id')
     s.insert(0,'Subject_id',meta.loc[s.Study_id].Subject_id.values)
-    s.to_csv(out/'submission.csv',index=False,encoding='utf-8',float_format='%.8f')
+    s.to_csv(out/'submission.csv',index=False,encoding='utf-8',float_format='%.'+str(csv_decimal_places)+'f')
     report={'validation':metrics,'submission':validate_submission(out/'submission.csv',args.root),
             'checkpoint_sha256':checkpoint_hashes,'arguments':vars(args),
             'deterministic_inference':True,
             'runtime':runtime,'runtime_matches_calibration':runtime==frozen.get('runtime') if frozen else None,
+            'probability_decimals':probability_decimals,'csv_decimal_places':csv_decimal_places,
+            'gate_policy':frozen.get('gate_policy','legacy_threshold_value') if frozen else 'half_step_between_distinct_validation_probabilities',
             'validation_recomputed':not bool(frozen)}
     (out/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     saved={'test':probs,'study_ids':test_ids}

@@ -16,6 +16,8 @@ def main():
     ap.add_argument('--predictions',default='submission')
     ap.add_argument('--out',default='submission/final')
     ap.add_argument('--root',default='raw_data/cxr_first')
+    ap.add_argument('--latency-report',help='Optional measured report bound to the same models and runtime')
+    ap.add_argument('--selection-report',help='Optional final selection evidence')
     args=ap.parse_args()
     checks=validate_submission(Path(args.predictions)/'submission.csv',args.root)
     out=Path(args.out)
@@ -41,6 +43,21 @@ def main():
     model_hashes=[hashlib.sha256((out/p).read_bytes()).hexdigest() for p in paths]
     if model_hashes!=report['checkpoint_sha256']:
         raise ValueError('Packaged weights differ from those used to generate predictions')
+    if args.latency_report:
+        latency=json.loads(Path(args.latency_report).read_text(encoding='utf-8'))
+        assert latency['checkpoint_sha256']==model_hashes
+        assert latency['checkpoint_bytes']==total and latency['models']==len(paths)
+        assert latency['tta']==report['arguments']['tta']
+        assert latency['runtime']==report['runtime']
+        assert latency['test_csv_sha256']==hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()
+        shutil.copy2(args.latency_report,out/'latency.json')
+    if args.selection_report:
+        selection=json.loads(Path(args.selection_report).read_text(encoding='utf-8'))
+        assert selection['selected']['checkpoint_sha256']==model_hashes
+        assert selection['selected']['aggregation']==report['arguments']['aggregation']
+        assert selection['selected']['tta']==report['arguments']['tta']
+        assert abs(selection['selected']['metrics']['macro_auc']-report['validation']['macro_auc'])<=1e-8
+        shutil.copy2(args.selection_report,out/'selection.json')
     (out/'checkpoint_info.json').write_text(json.dumps(checkpoint_info,indent=2),encoding='utf-8')
     (out/'labels.json').write_text(json.dumps(dict(enumerate(LABELS,1)),indent=2),encoding='utf-8')
     switches=' --calibration report.json'
@@ -58,6 +75,8 @@ def main():
 将占位路径替换为官方数据目录与缩放缓存目录。没有缓存时可以直接读取原图，但更慢。此命令只需 test.csv 与测试图像，使用已冻结的验证集阈值与推理设置，不需要验证集标签。
 
 `labels.json` 记录类别映射，`checkpoint_info.json` 记录权重训练配置、选中轮次和来源信息，`manifest.json` 记录文件摘要。旧基线未记录的来源字段为 null，不据此声称已验证对应环境。
+
+实际生成时的运行环境见 report.json 的 runtime 字段。若包含 latency.json / selection.json，它们分别记录同一模型与环境的本机样本测时及验证集选择依据；本机样本通过不等同于 T4 或整个测试集最坏延迟达标。
 
 模型仅以官方 train 划分训练，valid 用于模型和阈值选择。验证得分不是隐藏测试成绩。T4 推理延迟与官方环境仍需目标机复验。未执行网站提交。
 '''

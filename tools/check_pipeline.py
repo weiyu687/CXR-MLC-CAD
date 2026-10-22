@@ -11,6 +11,7 @@ from src.data import frame,aggregate,Images
 from PIL import Image
 from src.model import AsymmetricLoss
 from predict import validate_submission
+from src.metrics import evaluate,submission_probabilities
 
 def main():
     with tempfile.TemporaryDirectory() as tmp:
@@ -53,5 +54,20 @@ def main():
         loss=AsymmetricLoss()(logits,torch.tensor([[0.,1.]*5]))
         loss.backward()
         assert torch.isfinite(loss) and torch.isfinite(logits.grad).all()
-    print('PASS: label IDs 1/10, multi-view averaging, identical packed cache, submission completeness, finite ASL gradients')
+    y=np.repeat(np.array([[0],[0],[1],[1]]),10,axis=1)
+    p=np.repeat(np.array([[.1],[.3],[.6],[.9]]),10,axis=1)
+    metrics=evaluate(y,p);gates=np.array(metrics['gates'])
+    assert np.allclose(gates,.45) and metrics['macro_f1_tuned']==1.
+    assert all(format(value,'.15f').endswith('500') for value in gates)
+    assert np.array_equal(p>=gates,p>gates)
+    close_p=np.repeat(np.array([[.1],[.100000000001],[.2],[.3]]),10,axis=1)
+    close_y=np.repeat(np.array([[0],[1],[1],[1]]),10,axis=1)
+    close_metrics=evaluate(close_y,close_p)
+    written_p=np.array([[float(format(value,'.15f')) for value in row] for row in submission_probabilities(close_p)])
+    written_gates=np.array([float(format(value,'.15f')) for value in close_metrics['gates']])
+    assert np.array_equal(written_p>written_gates,close_y.astype(bool))
+    assert np.array_equal(written_p>=written_gates,close_y.astype(bool))
+    clipped=submission_probabilities(np.array([[0.,1.]]))
+    assert clipped.min()>0 and clipped.max()<1
+    print('PASS: labels, pooling, packed cache, CSV completeness, ASL gradients, midpoint gate boundaries and precision')
 if __name__=='__main__':main()
