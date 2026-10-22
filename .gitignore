@@ -1,0 +1,13 @@
+raw_data/
+data_cache/
+outputs/
+submission/
+.idea/
+__pycache__/
+*.pyc
+.venv/
+*.pt
+*.pth
+*.csv
+docs/official_*.png
+*.log
