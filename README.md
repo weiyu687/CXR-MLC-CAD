@@ -74,5 +74,6 @@ requirements.txt 固定开发时的 timm、Pillow、NumPy、pandas 和 scikit-le
 - [CheXFusion, ICCVW 2023](https://arxiv.org/abs/2308.03968)：参考多视角融合及类别不均衡处理方向。本项目最初使用概率聚合，未复现其 Transformer 融合模块。
 - [Medical X-ray Attention, 2025](https://arxiv.org/abs/2504.02277)：参考局部与全局证据结合方向，未使用其教师或外部数据。
 - [Co-occurrence Aware Class Attention, 2026](https://arxiv.org/abs/2608.09774)：参考每类空间池化方向；此项目的可选池化头不含论文的共现图模块。
+- [EfficientNetV2, ICML 2021](https://arxiv.org/abs/2104.00298)：独立架构候选，使用 PyTorch/timm 的 EfficientNetV2-B0 从随机初始化训练，不使用论文中的外部数据或预训练权重。架构优点不代表本比赛一定取得更高分。
 
 实验记录见 [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)。
