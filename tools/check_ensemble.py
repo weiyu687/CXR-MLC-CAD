@@ -42,6 +42,16 @@ def main():
         exported=select(runs,root,prediction_files=files)
         assert exported['selected']==result['selected']
         assert exported['prediction_source']=='deterministic deployment exports'
+        with np.load(files[1]) as saved:
+            p=saved['valid_images'];ids=saved['valid_image_ids'];modified=json.loads(str(saved['image_prediction_metadata']))
+        modified['runtime']={'torch':'different-runtime'}
+        np.savez(files[1],valid_images=p,valid_image_ids=ids,image_prediction_metadata=np.array(json.dumps(modified)))
+        try:
+            select(runs,root,prediction_files=files)
+            raise RuntimeError('Mixed inference runtimes incorrectly accepted')
+        except ValueError as error:assert 'runtime settings' in str(error)
+        modified.pop('runtime')
+        np.savez(files[1],valid_images=p,valid_image_ids=ids,image_prediction_metadata=np.array(json.dumps(modified)))
         np.savez(files[0],valid_images=probabilities,valid_image_ids=np.array(['b','a','c','d']),
                  image_prediction_metadata=np.array(json.dumps({**metadata,
                     'checkpoint_sha256':hashlib.sha256((runs[0]/'best.pt').read_bytes()).hexdigest()})))

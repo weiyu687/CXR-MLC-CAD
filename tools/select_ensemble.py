@@ -33,9 +33,9 @@ def select(runs, root, max_bytes=500_000_000, prediction_files=None):
                     raise ValueError('Validation metadata changed since prediction export')
                 if not np.array_equal(saved['valid_image_ids'],df.Dicom_id.to_numpy(dtype=str)):
                     raise ValueError('Exported validation image order differs')
-                settings=(metadata['batch_size'],metadata['tta'])
+                settings=(metadata['batch_size'],metadata['tta'],json.dumps(metadata.get('runtime',{}),sort_keys=True))
                 if export_settings is None:export_settings=settings
-                if settings!=export_settings:raise ValueError('Exported batch/TTA settings differ between members')
+                if settings!=export_settings:raise ValueError('Exported batch/TTA/runtime settings differ between members')
                 probabilities=saved['valid_images']
         if probabilities.shape!=(len(df),10):raise ValueError('Validation image counts differ')
         for mode in modes:
@@ -61,6 +61,8 @@ def select(runs, root, max_bytes=500_000_000, prediction_files=None):
     return {'selected':candidates[0],'candidates':candidates,
             'scope':'Validation only; scores are model-selection estimates, not hidden-test results',
             'latency_verified':False,'tta':export_settings[1] if export_settings else False,
+            'batch_size':export_settings[0] if export_settings else None,
+            'runtime':json.loads(export_settings[2]) if export_settings else None,
             'prediction_source':'deterministic deployment exports' if prediction_files is not None else 'training validation snapshots'}
 
 def main():

@@ -45,12 +45,20 @@ def main():
             'independent_inference_reproduced':False,'T4_verified':False}
     if args.reproduced:
         validate_submission(args.reproduced,args.root)
+        reproduced_report=json.loads(Path(args.reproduced).with_name('report.json').read_text(encoding='utf-8'))
+        assert reproduced_report['checkpoint_sha256']==report['checkpoint_sha256']
+        assert reproduced_report['validation_recomputed'] is False,'Reproduction must use frozen calibration'
+        for key in ['aggregation','tta','batch_size']:
+            assert reproduced_report['arguments'][key]==report['arguments'][key]
+        if report.get('runtime'):
+            assert reproduced_report.get('runtime_matches_calibration') is True,'Reproduction runtime differs'
         a=csv.sort_values(['Study_id','Predict_class']).reset_index(drop=True)
         b=pd.read_csv(args.reproduced).sort_values(['Study_id','Predict_class']).reset_index(drop=True)
         pd.testing.assert_frame_equal(a[['Subject_id','Study_id','Predict_class','Gate']],b[['Subject_id','Study_id','Predict_class','Gate']])
         difference=float(np.max(np.abs(a.Probability.values-b.Probability.values)))
         assert difference<=1e-6,'Reproduced probabilities differ by more than 1e-6'
-        result.update(independent_inference_reproduced=True,max_probability_difference=difference)
+        result.update(independent_inference_reproduced=True,max_probability_difference=difference,
+                      reproduction_configuration_matches=True,runtime_recorded=bool(report.get('runtime')))
     Path(args.out).write_text(json.dumps(result,indent=2),encoding='utf-8')
     print(json.dumps(result,indent=2))
 if __name__=='__main__':main()

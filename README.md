@@ -79,6 +79,10 @@ python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 
 requirements.txt 固定开发时的 timm、Pillow、NumPy、pandas 和 scikit-learn 版本，保留 PyTorch/torchvision 的兼容范围；requirements-competition.txt 对应官方 Python 3.12 目标容器的版本约束，尚不代表已在该环境验收。后续训练保存 Git 提交、是否有未提交修改及主要环境版本；提交包附类别映射和逐个权重的训练配置，缺失的旧来源信息保留为 null。
 
+现已在本机隔离环境验证 Python 3.12.15 / PyTorch 2.10 / torchvision 0.25：三份已完成权重分别通过 CPU 和 RTX 4070 SUPER GPU 加载及有限值前向检查；EfficientNetV2 的随机初始化架构也通过。GPU 使用 CUDA 12.6 构建，**不是 T4 / CUDA 12.8 验收**，也不是完整准确率或耗时验收。已有结果表仍来自 2.8 开发环境；最终比较将统一在 3.12/2.10 隔离推理环境复算。`tools/check_target_runtime.py --device cpu|cuda ...` 可执行同类检查。
+
+[PyTorch 官方版本页](https://pytorch.org/get-started/previous-versions/) 提供 2.10 的 CPU、CUDA 12.6 和 12.8 安装索引。官方容器使用其指定 CUDA 构建；本机隔离验证使用官方 cu126 构建，未更换现有训练环境或显卡驱动。推理和测时报告现在记录实际 Python、框架、图像库、设备、CUDA/cuDNN 及精度信息；集成选择拒绝混合不同环境的逐图概率。
+
 ## 研究参考
 
 - [Asymmetric Loss for Multi-Label Classification, ICCV 2021](https://openaccess.thecvf.com/content/ICCV2021/html/Ridnik_Asymmetric_Loss_for_Multi-Label_Classification_ICCV_2021_paper.html)：处理多标签正负不平衡；此项目提供独立实现以供对照。

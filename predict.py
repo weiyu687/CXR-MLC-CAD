@@ -11,7 +11,7 @@ from src.data import Images,aggregate
 from src.model import build_model
 from src.metrics import evaluate
 from train import predict
-from src.inference import configure_deterministic_inference
+from src.inference import configure_deterministic_inference,runtime_information
 
 def validate_submission(path, root):
     s=pd.read_csv(path)
@@ -72,6 +72,7 @@ def main():
         del model
     metrics=frozen['validation'] if frozen else evaluate(valid_y,np.mean(all_probs['valid'],axis=0))
     probs=np.mean(all_probs['test'],axis=0)
+    runtime=runtime_information(device)
     s=pd.DataFrame({'Study_id':np.repeat(test_ids,10),'Predict_class':np.tile(np.arange(1,11),len(test_ids)),
                     'Probability':probs.reshape(-1),'Gate':np.tile(metrics['gates'],len(test_ids))})
     meta=pd.read_csv(Path(args.root)/'test.csv').drop_duplicates('Study_id').set_index('Study_id')
@@ -80,6 +81,7 @@ def main():
     report={'validation':metrics,'submission':validate_submission(out/'submission.csv',args.root),
             'checkpoint_sha256':checkpoint_hashes,'arguments':vars(args),
             'deterministic_inference':True,
+            'runtime':runtime,'runtime_matches_calibration':runtime==frozen.get('runtime') if frozen else None,
             'validation_recomputed':not bool(frozen)}
     (out/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     saved={'test':probs,'study_ids':test_ids}
@@ -87,6 +89,7 @@ def main():
     if args.export_images:
         metadata={'checkpoint_sha256':checkpoint_hashes[0],'batch_size':args.batch_size,'tta':args.tta,
                   'deterministic_inference':True,
+                  'runtime':runtime,
                   'validation_csv_sha256':hashlib.sha256((Path(args.root)/'valid.csv').read_bytes()).hexdigest(),
                   'test_csv_sha256':hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()}
         saved.update(image_saved,image_prediction_metadata=np.array(json.dumps(metadata)))

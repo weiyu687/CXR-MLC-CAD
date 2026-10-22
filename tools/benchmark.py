@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from src.data import Images
 from src.model import build_model
-from src.inference import configure_deterministic_inference
+from src.inference import configure_deterministic_inference,runtime_information
 
 def main():
     ap=argparse.ArgumentParser()
@@ -22,9 +22,10 @@ def main():
     ap.add_argument('--out',default='outputs/latency.json')
     args=ap.parse_args();torch.set_num_threads(4)
     configure_deterministic_inference()
+    checkpoint_hashes=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
     if args.calibration:
         frozen=json.loads(Path(args.calibration).read_text(encoding='utf-8'))
-        actual=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
+        actual=checkpoint_hashes
         if actual!=frozen['checkpoint_sha256']:raise ValueError('Calibration/model mismatch')
         args.tta=frozen['arguments']['tta']
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -56,6 +57,9 @@ def main():
     report={'device':torch.cuda.get_device_name() if device.type=='cuda' else 'cpu',
             'torch':torch.__version__,'samples':len(elapsed),'batch_size':1,'cache':False,'models':len(members),'tta':args.tta,
             'deterministic_inference':True,
+            'checkpoint_sha256':checkpoint_hashes,'runtime':runtime_information(device),
+            'data_root':str(Path(args.root).resolve()),
+            'test_csv_sha256':hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest(),
             'includes':'disk read, original JPEG decode, preprocessing, transfer, forward, sigmoid, CPU output',
             'mean_ms':float(np.mean(elapsed)),'p50_ms':float(np.median(elapsed)),
             'p95_ms':float(np.percentile(elapsed,95)),'max_ms':float(max(elapsed)),
