@@ -1,6 +1,7 @@
 """Reproduce a study-level competition CSV; never submits to the website."""
 import argparse
 import json
+import hashlib
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -34,11 +35,19 @@ def main():
     ap.add_argument('--workers',type=int,default=2)
     ap.add_argument('--tta',action='store_true')
     ap.add_argument('--aggregation',choices=['mean','max','frontal','weighted'],default='mean')
+    ap.add_argument('--calibration',help='Frozen report.json; enables inference with only test.csv/test images')
     args=ap.parse_args(); torch.set_num_threads(4)
+    frozen=json.loads(Path(args.calibration).read_text(encoding='utf-8')) if args.calibration else None
+    checkpoint_hashes=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
+    if frozen:
+        if frozen['checkpoint_sha256']!=checkpoint_hashes:
+            raise ValueError('Calibration does not match checkpoint contents/order')
+        args.tta=frozen['arguments']['tta']
+        args.aggregation=frozen['arguments']['aggregation']
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     torch.backends.cudnn.benchmark=True
     out=Path(args.out); out.mkdir(parents=True,exist_ok=True)
-    all_probs={'valid':[],'test':[]}
+    all_probs={'test':[]} if frozen else {'valid':[],'test':[]}
     for checkpoint in args.checkpoint:
         ck=torch.load(checkpoint,map_location='cpu',weights_only=False)
         model=build_model(ck['config']['model']); model.load_state_dict(ck['state_dict'])
@@ -52,15 +61,19 @@ def main():
             if split=='valid': valid_y=y
             else: test_ids=ids
         del model
-    metrics=evaluate(valid_y,np.mean(all_probs['valid'],axis=0))
+    metrics=frozen['validation'] if frozen else evaluate(valid_y,np.mean(all_probs['valid'],axis=0))
     probs=np.mean(all_probs['test'],axis=0)
     s=pd.DataFrame({'Study_id':np.repeat(test_ids,10),'Predict_class':np.tile(np.arange(1,11),len(test_ids)),
                     'Probability':probs.reshape(-1),'Gate':np.tile(metrics['gates'],len(test_ids))})
     meta=pd.read_csv(Path(args.root)/'test.csv').drop_duplicates('Study_id').set_index('Study_id')
     s.insert(0,'Subject_id',meta.loc[s.Study_id].Subject_id.values)
     s.to_csv(out/'submission.csv',index=False,encoding='utf-8',float_format='%.8f')
-    report={'validation':metrics,'submission':validate_submission(out/'submission.csv',args.root),'arguments':vars(args)}
+    report={'validation':metrics,'submission':validate_submission(out/'submission.csv',args.root),
+            'checkpoint_sha256':checkpoint_hashes,'arguments':vars(args),
+            'validation_recomputed':not bool(frozen)}
     (out/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
-    np.savez_compressed(out/'predictions.npz',valid=np.mean(all_probs['valid'],axis=0),targets=valid_y,test=probs,study_ids=test_ids)
+    saved={'test':probs,'study_ids':test_ids}
+    if not frozen:saved.update(valid=np.mean(all_probs['valid'],axis=0),targets=valid_y)
+    np.savez_compressed(out/'predictions.npz',**saved)
     print(json.dumps(report,indent=2))
 if __name__=='__main__':main()

@@ -53,6 +53,8 @@ python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 
 `outputs/` 保存审计、配置、每轮指标、最佳权重、可恢复检查点；`submission/` 保存 `submission.csv`、验证报告及本地逐例概率。提交 CSV 以官网示例的五列生成：`Subject_id,Study_id,Predict_class,Probability,Gate`。保留官方 CSV 的字符串 ID，每次检查恰好 10 行，概率范围 [0,1]，UTF-8 编码。初赛仅需上传 CSV；复赛还需模型供验证。
 
+`tools/package.py` 将选定权重、源代码、CSV、校准报告和 SHA-256 清单打包。包内复现命令使用 `--calibration report.json`，只读测试集，沿用冻结的验证阈值、聚合和增强设置，并拒绝不匹配的权重。`python tools/check_deployment.py` 用临时合成数据验证打包后 CSV 完全一致、无需验证标签、清单完整及权重不匹配拒绝逻辑；它不会将合成分数混入真实实验结果。
+
 官方模型文件总大小限制 ≤500MB、单图端到端推理 ≤100ms，参考硬件 T4 16GB。本机测试不能等同于 T4 测试，后续报告应区分实测与未验证约束。官方目标环境 Python 3.12 / PyTorch 2.10 / torchvision 0.25；当前开发环境 Python 3.9 / PyTorch 2.8 cu126 / torchvision 0.23，移植需复验。
 
 ## 研究参考
