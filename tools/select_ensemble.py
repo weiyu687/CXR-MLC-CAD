@@ -57,7 +57,7 @@ def select(runs, root, max_bytes=500_000_000, prediction_files=None):
                                    'aggregation':mode,'model_bytes':model_bytes,'metrics':metrics,
                                    'tta':export_settings[1] if export_settings else False})
     if not candidates:raise ValueError('No candidate satisfies model size limit')
-    candidates.sort(key=lambda x:(-x['metrics']['macro_auc'],len(x['checkpoints']),x['model_bytes']))
+    candidates.sort(key=lambda x:(-x['metrics']['macro_auc'],-x['metrics']['macro_f1_tuned'],len(x['checkpoints']),x['model_bytes']))
     return {'selected':candidates[0],'candidates':candidates,
             'scope':'Validation only; scores are model-selection estimates, not hidden-test results',
             'latency_verified':False,'tta':export_settings[1] if export_settings else False,
