@@ -1,6 +1,8 @@
 """Competition-only data handling; no network access or external weights."""
 from pathlib import Path
 import random
+import io
+import json
 import numpy as np
 import pandas as pd
 import torch
@@ -26,6 +28,9 @@ def frame(root, split):
 class Images(Dataset):
     def __init__(self, root, cache, split, size, train=False, study_sampling=True):
         self.root, self.cache, self.split = Path(root), Path(cache), split
+        index_path = self.cache / (split + '.index.json')
+        self.packed_index = json.loads(index_path.read_text()) if index_path.exists() else None
+        self.packed_bytes = None
         self.df = frame(root, split)
         self.train, self.study_sampling = train, train and study_sampling
         self.groups = [g.index.tolist() for _, g in self.df.groupby('Study_id', sort=False)]
@@ -39,12 +44,19 @@ class Images(Dataset):
         if self.study_sampling:
             idx = random.choice(self.groups[idx])
         r = self.df.iloc[idx]
+        if self.packed_index is not None:
+            if self.packed_bytes is None:
+                self.packed_bytes = np.memmap(self.cache / (self.split+'.bin'), dtype=np.uint8, mode='r')
+            offset, length = self.packed_index[r.Dicom_id]
+            source = io.BytesIO(self.packed_bytes[offset:offset+length].tobytes())
+        else:
+            source = None
         p = self.cache / self.split / (r.Dicom_id + '.jpg')
-        if not p.exists():
+        if source is None and not p.exists():
             p = self.root / self.split / r.Subject_id / r.Study_id / (r.Dicom_id + '.jpg')
-        with Image.open(p) as im:
+        with Image.open(source if source is not None else p) as im:
             im = im.convert('RGB')
-            if im.width != im.height:
+            if im.size != (448, 448):
                 im = ImageOps.pad(im, (448, 448), method=Image.Resampling.BICUBIC, color=0)
             x = self.transform(im)
         y = torch.tensor(r.target if 'target' in r else [0.]*10, dtype=torch.float32)

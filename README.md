@@ -40,11 +40,16 @@ CSV 审计确认三个划分之间患者、检查、图像 ID 均无重叠；同
 ```powershell
 python -m pip install -r requirements.txt
 python tools/prepare.py
+python tools/pack_cache.py
 python train.py --model resnet18 --size 320 --epochs 35 --batch-size 48 --out outputs/resnet18_s42
 python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 ```
 
 恢复训练：在相同配置的训练命令中添加 `--resume outputs/resnet18_s42/last.pt`。缓存为等比例缩放并补黑边的 448×448 灰度 JPG；模型输入复制为 RGB 后归一化。Windows 多进程入口已保护。随机种子默认 42；CUDA 性能优化可能引入非确定性。
+
+机械硬盘建议先用 `python tools/pack_cache.py --out <SSD目录>` 合并缓存，再给 train.py / predict.py 传入 `--cache <SSD目录>`。压缩缓存通过内存映射共享，不要求为多个数据加载进程复制完整图像集。默认使用两个数据加载进程，适应 Windows 内存开销。
+
+可选的 `resnet18_cap` 使用疾病独立的空间注意力池化，支持用 `--init <比赛数据训练的ResNet18权重>` 初始化后微调。它是参考类别注意力思想的简化实现，不宣称复现论文的完整图结构或结果。是否采用需由官方验证集的实际对比决定。
 
 `outputs/` 保存审计、配置、每轮指标、最佳权重、可恢复检查点；`submission/` 保存 `submission.csv`、验证报告及本地逐例概率。提交 CSV 以官网示例的五列生成：`Subject_id,Study_id,Predict_class,Probability,Gate`。保留官方 CSV 的字符串 ID，每次检查恰好 10 行，概率范围 [0,1]，UTF-8 编码。初赛仅需上传 CSV；复赛还需模型供验证。
 
@@ -54,5 +59,8 @@ python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 
 - [Asymmetric Loss for Multi-Label Classification, ICCV 2021](https://openaccess.thecvf.com/content/ICCV2021/html/Ridnik_Asymmetric_Loss_for_Multi-Label_Classification_ICCV_2021_paper.html)：处理多标签正负不平衡；此项目提供独立实现以供对照。
 - [ConvNeXt V2, CVPR 2023](https://openaccess.thecvf.com/content/CVPR2023/html/Woo_ConvNeXt_V2_Co-Designing_and_Scaling_ConvNets_With_Masked_Autoencoders_CVPR_2023_paper.html)：现代卷积结构候选；不使用外部预训练权重。
+- [CheXFusion, ICCVW 2023](https://arxiv.org/abs/2308.03968)：参考多视角融合及类别不均衡处理方向。本项目最初使用概率聚合，未复现其 Transformer 融合模块。
+- [Medical X-ray Attention, 2025](https://arxiv.org/abs/2504.02277)：参考局部与全局证据结合方向，未使用其教师或外部数据。
+- [Co-occurrence Aware Class Attention, 2026](https://arxiv.org/abs/2608.09774)：参考每类空间池化方向；此项目的可选池化头不含论文的共现图模块。
 
 实验记录见 [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md)。

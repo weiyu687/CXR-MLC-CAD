@@ -40,6 +40,7 @@ def main():
     ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--loss', choices=['bce','asl'], default='bce')
     ap.add_argument('--resume')
+    ap.add_argument('--init',help='Initialize only from a checkpoint trained on official training data')
     args = ap.parse_args()
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     torch.set_num_threads(4)
@@ -53,6 +54,15 @@ def main():
     tl = DataLoader(train,shuffle=True,drop_last=True,**kwargs)
     vl = DataLoader(valid,shuffle=False,**kwargs)
     model = build_model(args.model).to(device, memory_format=torch.channels_last)
+    if args.init:
+        init=torch.load(args.init,map_location='cpu',weights_only=False)
+        state=init['state_dict']
+        if args.model.endswith('_cap') and not init['config']['model'].endswith('_cap'):
+            model.backbone.load_state_dict({k:v for k,v in state.items() if not k.startswith('fc.')},strict=True)
+            with torch.no_grad():
+                model.weight.copy_(state['fc.weight']);model.bias.copy_(state['fc.bias'])
+        else:
+            model.load_state_dict(state)
     ema = copy.deepcopy(model).eval()
     for p in ema.parameters(): p.requires_grad_(False)
     optimizer = torch.optim.AdamW(model.parameters(),lr=args.lr,weight_decay=0.02)
