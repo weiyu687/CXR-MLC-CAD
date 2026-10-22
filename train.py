@@ -4,6 +4,8 @@ import copy
 import json
 import math
 import random
+import platform
+import subprocess
 import time
 from pathlib import Path
 import numpy as np
@@ -43,12 +45,25 @@ def main():
     ap.add_argument('--resume')
     ap.add_argument('--init',help='Initialize only from a checkpoint trained on official training data')
     args = ap.parse_args()
+    def git_output(arguments):
+        try:
+            result=subprocess.run(['git',*arguments],capture_output=True,text=True,timeout=5)
+            return result.stdout.strip() if result.returncode==0 else None
+        except (OSError,subprocess.TimeoutExpired):return None
+    import timm
+    import PIL
+    status=git_output(['status','--porcelain'])
+    provenance={'source_commit':git_output(['rev-parse','HEAD']),
+                'source_worktree_dirty':bool(status) if status is not None else None,
+                'python':platform.python_version(),'torch':str(torch.__version__),
+                'timm':timm.__version__,'Pillow':PIL.__version__}
     random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
     torch.set_num_threads(4)
     torch.backends.cudnn.benchmark = True
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     (out/'config.json').write_text(json.dumps(vars(args),indent=2),encoding='utf-8')
+    (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     train = Images(args.root,args.cache,'train',args.size,train=True)
     valid = Images(args.root,args.cache,'valid',args.size)
     kwargs = dict(batch_size=args.batch_size,num_workers=args.workers,pin_memory=device.type=='cuda',persistent_workers=args.workers>0)
@@ -115,7 +130,7 @@ def main():
         if metrics['macro_auc']>best:
             best=metrics['macro_auc']
             torch.save({'state_dict':{k:v.cpu() for k,v in ema.state_dict().items()},'config':vars(args),'epoch':epoch+1,
-                        'selection_aggregation':selected,'metrics':metrics},out/'best.pt')
+                        'selection_aggregation':selected,'metrics':metrics,'provenance':provenance},out/'best.pt')
             np.savez_compressed(out/'valid_predictions.npz',probabilities=predictions,study_probabilities=p,targets=y,study_ids=ids)
             (out/'metrics.json').write_text(json.dumps(record,indent=2),encoding='utf-8')
         torch.save({'state_dict':model.state_dict(),'ema':ema.state_dict(),'optimizer':optimizer.state_dict(),'scaler':scaler.state_dict(),

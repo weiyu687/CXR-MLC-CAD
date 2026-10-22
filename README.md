@@ -63,6 +63,8 @@ python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 
 官方模型文件总大小限制 ≤500MB、单图端到端推理 ≤100ms，参考硬件 T4 16GB。本机测试不能等同于 T4 测试，后续报告应区分实测与未验证约束。官方目标环境 Python 3.12 / PyTorch 2.10 / torchvision 0.25；当前开发环境 Python 3.9 / PyTorch 2.8 cu126 / torchvision 0.23，移植需复验。
 
+requirements.txt 固定开发时的 timm、Pillow、NumPy、pandas 和 scikit-learn 版本，保留 PyTorch/torchvision 的兼容范围；requirements-competition.txt 对应官方 Python 3.12 目标容器的版本约束，尚不代表已在该环境验收。后续训练保存 Git 提交、是否有未提交修改及主要环境版本；提交包附类别映射和逐个权重的训练配置，缺失的旧来源信息保留为 null。
+
 ## 研究参考
 
 - [Asymmetric Loss for Multi-Label Classification, ICCV 2021](https://openaccess.thecvf.com/content/ICCV2021/html/Ridnik_Asymmetric_Loss_for_Multi-Label_Classification_ICCV_2021_paper.html)：处理多标签正负不平衡；此项目提供独立实现以供对照。

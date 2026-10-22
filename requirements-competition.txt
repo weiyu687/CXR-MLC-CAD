@@ -1,0 +1,4 @@
+# Official target runtime. Install using Python 3.12 in the competition container.
+torch==2.10.0
+torchvision==0.25.0
+-r requirements.txt
