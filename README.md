@@ -51,6 +51,8 @@ python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 
 可选的 `resnet18_cap` 使用疾病独立的空间注意力池化，支持用 `--init <比赛数据训练的ResNet18权重>` 初始化后微调。它是参考类别注意力思想的简化实现，不宣称复现论文的完整图结构或结果。是否采用需由官方验证集的实际对比决定。
 
+后续候选训练可指定 `--selection-aggregation auto`，在每轮验证中比较全图平均、最大值、优先正位和正位加权四种检查级聚合方式，再保存最佳 AUC 的权重及对应聚合方式。默认仍以全图平均选权重。选择使用验证标签，测试标签始终不可见；多次调参可能使验证分数偏乐观。
+
 `outputs/` 保存审计、配置、每轮指标、最佳权重、可恢复检查点；`submission/` 保存 `submission.csv`、验证报告及本地逐例概率。提交 CSV 以官网示例的五列生成：`Subject_id,Study_id,Predict_class,Probability,Gate`。保留官方 CSV 的字符串 ID，每次检查恰好 10 行，概率范围 [0,1]，UTF-8 编码。初赛仅需上传 CSV；复赛还需模型供验证。
 
 `tools/package.py` 将选定权重、源代码、CSV、校准报告和 SHA-256 清单打包。包内复现命令使用 `--calibration report.json`，只读测试集，沿用冻结的验证阈值、聚合和增强设置，并拒绝不匹配的权重。`python tools/check_deployment.py` 用临时合成数据验证打包后 CSV 完全一致、无需验证标签、清单完整及权重不匹配拒绝逻辑；它不会将合成分数混入真实实验结果。

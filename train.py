@@ -39,6 +39,7 @@ def main():
     ap.add_argument('--lr', type=float, default=0.001)
     ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--loss', choices=['bce','asl'], default='bce')
+    ap.add_argument('--selection-aggregation',choices=['mean','max','frontal','weighted','auto'],default='mean')
     ap.add_argument('--resume')
     ap.add_argument('--init',help='Initialize only from a checkpoint trained on official training data')
     args = ap.parse_args()
@@ -99,14 +100,22 @@ def main():
             if step%100==0:
                 print(f'epoch={epoch+1} step={step}/{len(tl)} loss={loss.item():.4f}',flush=True)
         predictions=predict(ema,vl,device)
-        ids,p,y=aggregate(valid.df,predictions)
-        metrics=evaluate(y,p)
-        record={'epoch':epoch+1,'loss':total/len(tl),'seconds':time.time()-t0,**metrics}
+        modes=['mean','max','frontal','weighted'] if args.selection_aggregation=='auto' else [args.selection_aggregation]
+        scores={}
+        for mode in modes:
+            _,mode_p,mode_y=aggregate(valid.df,predictions,mode)
+            scores[mode]=evaluate(mode_y,mode_p)
+        selected=max(scores,key=lambda k:scores[k]['macro_auc'])
+        ids,p,y=aggregate(valid.df,predictions,selected)
+        metrics=scores[selected]
+        record={'epoch':epoch+1,'loss':total/len(tl),'seconds':time.time()-t0,
+                'aggregation':selected,'aggregation_macro_auc':{k:v['macro_auc'] for k,v in scores.items()},**metrics}
         with (out/'history.jsonl').open('a',encoding='utf-8') as f: f.write(json.dumps(record)+'\n')
         print(json.dumps(record),flush=True)
         if metrics['macro_auc']>best:
             best=metrics['macro_auc']
-            torch.save({'state_dict':{k:v.cpu() for k,v in ema.state_dict().items()},'config':vars(args),'epoch':epoch+1,'metrics':metrics},out/'best.pt')
+            torch.save({'state_dict':{k:v.cpu() for k,v in ema.state_dict().items()},'config':vars(args),'epoch':epoch+1,
+                        'selection_aggregation':selected,'metrics':metrics},out/'best.pt')
             np.savez_compressed(out/'valid_predictions.npz',probabilities=predictions,study_probabilities=p,targets=y,study_ids=ids)
             (out/'metrics.json').write_text(json.dumps(record,indent=2),encoding='utf-8')
         torch.save({'state_dict':model.state_dict(),'ema':ema.state_dict(),'optimizer':optimizer.state_dict(),'scaler':scaler.state_dict(),
