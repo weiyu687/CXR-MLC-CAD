@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.data import frame, LABELS
+from src.preprocessing import resize_original
 from PIL import Image, ImageOps
 from tqdm import tqdm
 
@@ -41,7 +42,7 @@ def main():
         if dst.exists():
             return
         with Image.open(src) as im:
-            im = ImageOps.pad(im.convert('L'), (args.size,args.size), method=Image.Resampling.BICUBIC, color=0)
+            im = resize_original(im,args.size)
             im.save(dst, quality=95)
     with ThreadPoolExecutor(args.workers) as pool:
         for _ in tqdm(pool.map(convert, jobs), total=len(jobs)):

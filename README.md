@@ -55,6 +55,8 @@ python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 
 `tools/package.py` 将选定权重、源代码、CSV、校准报告和 SHA-256 清单打包。包内复现命令使用 `--calibration report.json`，只读测试集，沿用冻结的验证阈值、聚合和增强设置，并拒绝不匹配的权重。`python tools/check_deployment.py` 用临时合成数据验证打包后 CSV 完全一致、无需验证标签、清单完整及权重不匹配拒绝逻辑；它不会将合成分数混入真实实验结果。
 
+原图直接推理与缓存生成共享灰度缩放和 quality=95 JPEG 量化处理，避免因为是否存在缓存而改变模型输入。部署测试同时覆盖“缓存生成结果、无缓存原图复现”的路径；最终材料还需对实际选定模型执行整包复验。
+
 官方模型文件总大小限制 ≤500MB、单图端到端推理 ≤100ms，参考硬件 T4 16GB。本机测试不能等同于 T4 测试，后续报告应区分实测与未验证约束。官方目标环境 Python 3.12 / PyTorch 2.10 / torchvision 0.25；当前开发环境 Python 3.9 / PyTorch 2.8 cu126 / torchvision 0.23，移植需复验。
 
 ## 研究参考

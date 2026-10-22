@@ -9,6 +9,7 @@ import torch
 from PIL import Image, ImageOps
 from torch.utils.data import Dataset
 from torchvision import transforms as T
+from .preprocessing import decode_original_like_cache
 
 LABELS = ['Enlarged Cardiomediastinum', 'Pneumothorax', 'Consolidation',
           'Pneumonia', 'Edema', 'Cardiomegaly', 'Atelectasis', 'Lung Opacity',
@@ -52,10 +53,12 @@ class Images(Dataset):
         else:
             source = None
         p = self.cache / self.split / (r.Dicom_id + '.jpg')
+        original = False
         if source is None and not p.exists():
             p = self.root / self.split / r.Subject_id / r.Study_id / (r.Dicom_id + '.jpg')
+            original = True
         with Image.open(source if source is not None else p) as im:
-            im = im.convert('RGB')
+            im = decode_original_like_cache(im) if original else im.convert('RGB')
             if im.size != (448, 448):
                 im = ImageOps.pad(im, (448, 448), method=Image.Resampling.BICUBIC, color=0)
             x = self.transform(im)
