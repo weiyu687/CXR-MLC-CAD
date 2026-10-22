@@ -31,7 +31,7 @@ def main():
     ap.add_argument('--cache',default='data_cache/448')
     ap.add_argument('--out',default='submission')
     ap.add_argument('--batch-size',type=int,default=64)
-    ap.add_argument('--workers',type=int,default=6)
+    ap.add_argument('--workers',type=int,default=2)
     ap.add_argument('--tta',action='store_true')
     ap.add_argument('--aggregation',choices=['mean','max'],default='mean')
     args=ap.parse_args(); torch.set_num_threads(4)

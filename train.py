@@ -35,7 +35,7 @@ def main():
     ap.add_argument('--size', type=int, default=320)
     ap.add_argument('--batch-size', type=int, default=64)
     ap.add_argument('--epochs', type=int, default=35)
-    ap.add_argument('--workers', type=int, default=6)
+    ap.add_argument('--workers', type=int, default=2)
     ap.add_argument('--lr', type=float, default=0.001)
     ap.add_argument('--seed', type=int, default=42)
     ap.add_argument('--loss', choices=['bce','asl'], default='bce')
