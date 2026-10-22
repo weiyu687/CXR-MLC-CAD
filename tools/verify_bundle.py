@@ -19,7 +19,7 @@ def main():
     args=ap.parse_args();bundle=Path(args.bundle).resolve()
     manifest=json.loads((bundle/'manifest.json').read_text(encoding='utf-8'))
     required={'predict.py','train.py','requirements.txt','requirements-competition.txt','README.md',
-              'labels.json','checkpoint_info.json','report.json','submission.csv','src/data.py','src/preprocessing.py'}
+              'labels.json','checkpoint_info.json','report.json','submission.csv','src/data.py','src/preprocessing.py','src/inference.py'}
     if not required.issubset(manifest['files']):raise ValueError('Required package files missing from manifest')
     for relative,expected in manifest['files'].items():
         path=(bundle/relative).resolve()
@@ -30,6 +30,7 @@ def main():
     assert labels=={str(i):name for i,name in enumerate(LABELS,1)}
     info=json.loads((bundle/'checkpoint_info.json').read_text())
     report=json.loads((bundle/'report.json').read_text())
+    assert report.get('deterministic_inference') is True,'Package must declare deterministic deployment settings'
     hashes=[hashlib.sha256((bundle/item['path']).read_bytes()).hexdigest() for item in info]
     assert hashes==report['checkpoint_sha256']
     model_bytes=sum((bundle/item['path']).stat().st_size for item in info)

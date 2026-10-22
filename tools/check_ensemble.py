@@ -2,6 +2,8 @@
 from pathlib import Path
 import sys
 import tempfile
+import hashlib
+import json
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import numpy as np
 import pandas as pd
@@ -28,5 +30,24 @@ def main():
         assert len(restricted['candidates'])==8
         assert all(len(x['checkpoints'])==1 for x in restricted['candidates'])
         assert len(result['selected']['checkpoints'])==1
-    print('PASS: ensemble pooling order, subset enumeration, size exclusion, smaller-model tie break')
+        files=[]
+        for run in runs:
+            with np.load(run/'valid_predictions.npz') as saved:probabilities=saved['probabilities']
+            metadata={'checkpoint_sha256':hashlib.sha256((run/'best.pt').read_bytes()).hexdigest(),
+                      'batch_size':64,'tta':False,'deterministic_inference':True,
+                      'validation_csv_sha256':hashlib.sha256((root/'valid.csv').read_bytes()).hexdigest()}
+            path=run/'deployment.npz';files.append(path)
+            np.savez(path,valid_images=probabilities,valid_image_ids=np.array(['a','b','c','d']),
+                     image_prediction_metadata=np.array(json.dumps(metadata)))
+        exported=select(runs,root,prediction_files=files)
+        assert exported['selected']==result['selected']
+        assert exported['prediction_source']=='deterministic deployment exports'
+        np.savez(files[0],valid_images=probabilities,valid_image_ids=np.array(['b','a','c','d']),
+                 image_prediction_metadata=np.array(json.dumps({**metadata,
+                    'checkpoint_sha256':hashlib.sha256((runs[0]/'best.pt').read_bytes()).hexdigest()})))
+        try:
+            select(runs,root,prediction_files=files)
+            raise RuntimeError('Shuffled image IDs incorrectly accepted')
+        except ValueError as error:assert 'image order' in str(error)
+    print('PASS: pooling order, subset/size gates, deterministic export equivalence and image-order rejection')
 if __name__=='__main__':main()
