@@ -67,6 +67,18 @@ def aggregate(df, probabilities, mode='mean'):
     p['Study_id'] = df.Study_id.values
     if mode == 'max':
         out = p.groupby('Study_id', sort=False).max()
+    elif mode in ['frontal','weighted']:
+        frontal=df.ViewPosition.isin(['AP','PA','PA LLD']).to_numpy()
+        if mode=='weighted':
+            weights=np.where(frontal,1.,0.35)
+        else:
+            has_frontal=pd.Series(frontal).groupby(df.Study_id,sort=False).transform('max').to_numpy()
+            weights=np.where(has_frontal,frontal.astype(float),1.)
+        values=p[list(range(10))].multiply(weights,axis=0)
+        values['Study_id']=df.Study_id.values
+        numerator=values.groupby('Study_id',sort=False).sum()
+        denominator=pd.Series(weights).groupby(df.Study_id,sort=False).sum()
+        out=numerator.div(denominator,axis=0)
     else:
         out = p.groupby('Study_id', sort=False).mean()
     y = None

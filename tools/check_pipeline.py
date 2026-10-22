@@ -16,7 +16,8 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         meta=pd.DataFrame({'Dicom_id':['a','b','c'],'Subject_id':['p1','p1','p2'],
-                           'Study_id':['s1','s1','s2'],'Predict_class':['1;10','1;10','2']})
+                           'Study_id':['s1','s1','s2'],'ViewPosition':['PA','LATERAL','LL'],
+                           'Predict_class':['1;10','1;10','2']})
         meta.to_csv(root/'train.csv',index=False)
         meta.drop(columns='Predict_class').to_csv(root/'test.csv',index=False)
         df=frame(root,'train')
@@ -25,6 +26,8 @@ def main():
         ids,p,y=aggregate(df,probabilities)
         assert ids.tolist()==['s1','s2']
         assert np.allclose(p[:,0],[.4,.8]) and y.shape==(2,10)
+        assert np.allclose(aggregate(df,probabilities,'frontal')[1][:,0],[.2,.8])
+        assert np.allclose(aggregate(df,probabilities,'weighted')[1][:,0],[(.2+.6*.35)/1.35,.8])
         cache=root/'cache';(cache/'train').mkdir(parents=True)
         offsets={}
         with (cache/'train.bin').open('wb') as packed:
