@@ -61,6 +61,8 @@ python predict.py --checkpoint outputs/resnet18_s42/best.pt --out submission
 
 原图直接推理与缓存生成共享灰度缩放和 quality=95 JPEG 量化处理，避免因为是否存在缓存而改变模型输入。部署测试同时覆盖“缓存生成结果、无缓存原图复现”的路径；最终材料还需对实际选定模型执行整包复验。
 
+部署和测时统一使用确定性推理设置，关闭卷积自动选型与 TF32，并固定 cuBLAS 工作区。`tools/verify_bundle.py` 检查实际文件摘要、权重和报告绑定、类别映射、模型总大小以及完整 CSV；传入 `--reproduced <独立生成的CSV>` 还会核对概率差异。相同环境与批量下的复现检查不能等同于跨 GPU/软件版本数值完全一致。
+
 官方模型文件总大小限制 ≤500MB、单图端到端推理 ≤100ms，参考硬件 T4 16GB。本机测试不能等同于 T4 测试，后续报告应区分实测与未验证约束。官方目标环境 Python 3.12 / PyTorch 2.10 / torchvision 0.25；当前开发环境 Python 3.9 / PyTorch 2.8 cu126 / torchvision 0.23，移植需复验。
 
 requirements.txt 固定开发时的 timm、Pillow、NumPy、pandas 和 scikit-learn 版本，保留 PyTorch/torchvision 的兼容范围；requirements-competition.txt 对应官方 Python 3.12 目标容器的版本约束，尚不代表已在该环境验收。后续训练保存 Git 提交、是否有未提交修改及主要环境版本；提交包附类别映射和逐个权重的训练配置，缺失的旧来源信息保留为 null。

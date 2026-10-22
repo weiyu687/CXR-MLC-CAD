@@ -11,6 +11,7 @@ from src.data import Images,aggregate
 from src.model import build_model
 from src.metrics import evaluate
 from train import predict
+from src.inference import configure_deterministic_inference
 
 def validate_submission(path, root):
     s=pd.read_csv(path)
@@ -37,6 +38,7 @@ def main():
     ap.add_argument('--aggregation',choices=['mean','max','frontal','weighted'],default='mean')
     ap.add_argument('--calibration',help='Frozen report.json; enables inference with only test.csv/test images')
     args=ap.parse_args(); torch.set_num_threads(4)
+    configure_deterministic_inference()
     frozen=json.loads(Path(args.calibration).read_text(encoding='utf-8')) if args.calibration else None
     checkpoint_hashes=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
     if frozen:
@@ -45,7 +47,6 @@ def main():
         args.tta=frozen['arguments']['tta']
         args.aggregation=frozen['arguments']['aggregation']
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    torch.backends.cudnn.benchmark=True
     out=Path(args.out); out.mkdir(parents=True,exist_ok=True)
     all_probs={'test':[]} if frozen else {'valid':[],'test':[]}
     for checkpoint in args.checkpoint:
@@ -70,6 +71,7 @@ def main():
     s.to_csv(out/'submission.csv',index=False,encoding='utf-8',float_format='%.8f')
     report={'validation':metrics,'submission':validate_submission(out/'submission.csv',args.root),
             'checkpoint_sha256':checkpoint_hashes,'arguments':vars(args),
+            'deterministic_inference':True,
             'validation_recomputed':not bool(frozen)}
     (out/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     saved={'test':probs,'study_ids':test_ids}

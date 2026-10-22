@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from src.data import Images
 from src.model import build_model
+from src.inference import configure_deterministic_inference
 
 def main():
     ap=argparse.ArgumentParser()
@@ -20,6 +21,7 @@ def main():
     ap.add_argument('--samples',type=int,default=60)
     ap.add_argument('--out',default='outputs/latency.json')
     args=ap.parse_args();torch.set_num_threads(4)
+    configure_deterministic_inference()
     if args.calibration:
         frozen=json.loads(Path(args.calibration).read_text(encoding='utf-8'))
         actual=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
@@ -33,7 +35,6 @@ def main():
         model=model.to(device,memory_format=torch.channels_last).eval()
         ds=Images(args.root,'__no_cache__','test',ck['config']['size'])
         members.append((model,ds))
-    torch.backends.cudnn.benchmark=True
     ds=members[0][1]
     indices=np.random.default_rng(123).choice(len(ds),min(len(ds),args.samples+10),replace=False)
     elapsed=[]
@@ -54,6 +55,7 @@ def main():
             if n>=10:elapsed.append(1000*(time.perf_counter()-t))
     report={'device':torch.cuda.get_device_name() if device.type=='cuda' else 'cpu',
             'torch':torch.__version__,'samples':len(elapsed),'batch_size':1,'cache':False,'models':len(members),'tta':args.tta,
+            'deterministic_inference':True,
             'includes':'disk read, original JPEG decode, preprocessing, transfer, forward, sigmoid, CPU output',
             'mean_ms':float(np.mean(elapsed)),'p50_ms':float(np.median(elapsed)),
             'p95_ms':float(np.percentile(elapsed,95)),'max_ms':float(max(elapsed)),
