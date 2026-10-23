@@ -44,6 +44,12 @@ def main():
     ap.add_argument('--selection-aggregation',choices=['mean','max','frontal','weighted','auto'],default='mean')
     ap.add_argument('--resume')
     ap.add_argument('--init',help='Initialize only from a checkpoint trained on official training data')
+    ap.add_argument('--frontal-training',action='store_true')
+    ap.add_argument('--regularize',action='store_true')
+    ap.add_argument('--mixup',type=float,default=0.)
+    ap.add_argument('--weight-decay',type=float,default=0.02)
+    ap.add_argument('--positive-weight',action='store_true',help='Square-root inverse positive frequency, capped at 5')
+    ap.add_argument('--patient-holdout',type=float,default=0.,help='Official training patients reserved for an independent selection split')
     args = ap.parse_args()
     def git_output(arguments):
         try:
@@ -64,11 +70,25 @@ def main():
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     (out/'config.json').write_text(json.dumps(vars(args),indent=2),encoding='utf-8')
     (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
-    train = Images(args.root,args.cache,'train',args.size,train=True)
+    train = Images(args.root,args.cache,'train',args.size,train=True,
+                   frontal_training=args.frontal_training,regularize=args.regularize)
     valid = Images(args.root,args.cache,'valid',args.size)
+    holdout=None
+    if args.patient_holdout:
+        if args.init or args.resume:raise ValueError('Patient holdout must train from scratch to avoid prior checkpoint leakage')
+        if not 0<args.patient_holdout<0.5:raise ValueError('Invalid holdout fraction')
+        patients=np.sort(train.df.Subject_id.unique())
+        rng=np.random.default_rng(args.seed)
+        held=set(rng.choice(patients,int(len(patients)*args.patient_holdout),replace=False))
+        holdout=Images(args.root,args.cache,'train',args.size)
+        holdout.df=holdout.df[holdout.df.Subject_id.isin(held)].reset_index(drop=True)
+        train.groups=[g for g in train.groups if train.df.iloc[g[0]].Subject_id not in held]
+        assert not set(train.df.iloc[[g[0] for g in train.groups]].Subject_id)&set(holdout.df.Subject_id)
+        (out/'holdout_patients.json').write_text(json.dumps(sorted(held)),encoding='utf-8')
     kwargs = dict(batch_size=args.batch_size,num_workers=args.workers,pin_memory=device.type=='cuda',persistent_workers=args.workers>0)
     tl = DataLoader(train,shuffle=True,drop_last=True,**kwargs)
     vl = DataLoader(valid,shuffle=False,**kwargs)
+    hl=DataLoader(holdout,shuffle=False,**kwargs) if holdout is not None else None
     model = build_model(args.model).to(device, memory_format=torch.channels_last)
     if args.init:
         init=torch.load(args.init,map_location='cpu',weights_only=False)
@@ -81,9 +101,15 @@ def main():
             model.load_state_dict(state)
     ema = copy.deepcopy(model).eval()
     for p in ema.parameters(): p.requires_grad_(False)
-    optimizer = torch.optim.AdamW(model.parameters(),lr=args.lr,weight_decay=0.02)
+    optimizer = torch.optim.AdamW(model.parameters(),lr=args.lr,weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler('cuda', enabled=device.type=='cuda')
     criterion = AsymmetricLoss() if args.loss=='asl' else torch.nn.BCEWithLogitsLoss()
+    if args.positive_weight:
+        if args.loss!='bce':raise ValueError('Positive weighting requires BCE')
+        targets=np.stack(train.df.iloc[[g[0] for g in train.groups]].target)
+        pos=targets.sum(0)
+        weights=np.sqrt((len(targets)-pos)/np.maximum(pos,1)).clip(1,5)
+        criterion=torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weights,dtype=torch.float32,device=device))
     best, start = -1., 0
     if args.resume:
         ck = torch.load(args.resume,map_location='cpu',weights_only=False)
@@ -100,6 +126,11 @@ def main():
             lr=args.lr*min(1.,(progress+0.1)/2)*0.5*(1+math.cos(math.pi*progress/args.epochs))
             for group in optimizer.param_groups: group['lr']=lr
             x=x.to(device,non_blocking=True).to(memory_format=torch.channels_last); y=y.to(device,non_blocking=True)
+            if args.mixup>0 and random.random()<0.5:
+                lam=float(np.random.beta(args.mixup,args.mixup))
+                order=torch.randperm(len(x),device=device)
+                x=lam*x+(1-lam)*x[order]
+                y=lam*y+(1-lam)*y[order]
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type,enabled=device.type=='cuda'):
                 logits=model(x)
@@ -123,14 +154,22 @@ def main():
         selected=max(scores,key=lambda k:scores[k]['macro_auc'])
         ids,p,y=aggregate(valid.df,predictions,selected)
         metrics=scores[selected]
+        holdout_metrics=None
+        if hl is not None:
+            hp=predict(ema,hl,device)
+            _,hprob,hy=aggregate(holdout.df,hp,'frontal')
+            holdout_metrics=evaluate(hy,hprob)
+        # A fixed patient holdout selects checkpoints without repeated official-valid tuning.
+        selection_score=holdout_metrics['macro_auc'] if holdout_metrics else metrics['macro_auc']
         record={'epoch':epoch+1,'loss':total/len(tl),'seconds':time.time()-t0,
-                'aggregation':selected,'aggregation_macro_auc':{k:v['macro_auc'] for k,v in scores.items()},**metrics}
+                'aggregation':selected,'aggregation_macro_auc':{k:v['macro_auc'] for k,v in scores.items()},
+                'holdout':holdout_metrics,'selection_score':selection_score,**metrics}
         with (out/'history.jsonl').open('a',encoding='utf-8') as f: f.write(json.dumps(record)+'\n')
         print(json.dumps(record),flush=True)
-        if metrics['macro_auc']>best:
-            best=metrics['macro_auc']
+        if selection_score>best:
+            best=selection_score
             torch.save({'state_dict':{k:v.cpu() for k,v in ema.state_dict().items()},'config':vars(args),'epoch':epoch+1,
-                        'selection_aggregation':selected,'metrics':metrics,'provenance':provenance},out/'best.pt')
+                        'selection_aggregation':selected,'metrics':metrics,'holdout_metrics':holdout_metrics,'provenance':provenance},out/'best.pt')
             np.savez_compressed(out/'valid_predictions.npz',probabilities=predictions,study_probabilities=p,targets=y,study_ids=ids)
             (out/'metrics.json').write_text(json.dumps(record,indent=2),encoding='utf-8')
         torch.save({'state_dict':model.state_dict(),'ema':ema.state_dict(),'optimizer':optimizer.state_dict(),'scaler':scaler.state_dict(),
