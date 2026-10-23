@@ -51,6 +51,7 @@ def main():
     ap.add_argument('--patient-holdout',type=float,default=0.,help='Official training patients reserved for an independent selection split')
     ap.add_argument('--head-lr-mult',type=float,help='Default 5 for a newly initialized ImageNet classifier, otherwise 1')
     ap.add_argument('--patience',type=int,default=0,help='Stop after this many epochs without an improvement in the selection split; 0 disables')
+    ap.add_argument('--horizontal-flip',action=argparse.BooleanOptionalAction,default=True,help='Training only; labels have no side-specific classes')
     args = ap.parse_args()
     if args.pretrained:
         if args.init or args.resume:raise ValueError('Choose pretrained initialization or a competition checkpoint')
@@ -91,7 +92,8 @@ def main():
     (out/'config.json').write_text(json.dumps(vars(args),indent=2),encoding='utf-8')
     (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     train = Images(args.root,args.cache,'train',args.size,train=True,
-                   frontal_training=args.frontal_training,regularize=args.regularize,normalization=args.normalization)
+                   frontal_training=args.frontal_training,regularize=args.regularize,normalization=args.normalization,
+                   horizontal_flip=args.horizontal_flip)
     valid = Images(args.root,args.cache,'valid',args.size,normalization=args.normalization)
     holdout=None
     if args.patient_holdout:

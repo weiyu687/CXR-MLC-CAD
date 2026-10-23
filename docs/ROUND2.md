@@ -42,3 +42,7 @@ PDF 同时明确：允许固定模型集成/TTA；禁止跨测试样本统计拟
 ResNet50 内部患者留出在第 5 轮达到 0.806576，之后第 6/7/8 轮连续下降，按三轮无提升停止。完成 8 轮，第 9 轮部分计算作废、未用于验证或权重选择；保留第 5 轮（官方验证 AUC 0.789145）。官方验证峰值出现在其他轮次，不据此改选内部留出权重。后续脚本加入同样的 patience 机制，保留实际训练轮数。
 
 新增 torchvision 官方 ImageNet DenseNet121 候选：320 输入，最多 12 轮，验证连续 4 轮不升停止，骨干学习率 0.0001、分类头 5 倍；同样正位优先、mixup/擦除和加权 BCE。其上游权重与另外两种架构均完成真实下载、全文许可证与 SHA-256 记录、两张随机输入 GPU 输出检查（不是医学验证分数）。最终四候选改为全量 ResNet50、320 EfficientNetV2-S、448/ASL EfficientNetV2-S 和 ImageNet DenseNet121；旧包仅作为固定对照。
+
+后续 EfficientNetV2-S / DenseNet121 的训练加入 50% 水平翻转（各类标签不区分左右），推理仍为固定输入；TTA 仅在验证选择后固定。已经启动的 ResNet50 两阶段保持无水平翻转，复现脚本显式指定 --no-horizontal-flip。参考原始 CheXNet 论文的 ImageNet 初始化与水平翻转做法，但不使用其医学权重或数据：https://www.microsoft.com/en-us/research/wp-content/uploads/2025/03/CheXNet_Radiologist-Level-Pneumonia-Detection-on-Chest-XRays.pdf 。这不是该论文的完整复现。
+
+额外的元数据对照只使用官方 train 拟合投照方向、体位、检查图像数量的 PyTorch 线性分类器。单独验证 AUC 0.629606；与旧方案或当前 ResNet50 混合的 0.1/0.25/0.5 三个固定强度均未超过对应图像基线，故不纳入部署。实际 CSV 不含官网描述中的 Support Devices 字段，未假造该特征。
