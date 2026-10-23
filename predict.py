@@ -55,9 +55,8 @@ def main():
     all_probs={'test':[]} if frozen else {'valid':[],'test':[]}
     image_saved={}
     for checkpoint in args.checkpoint:
-        ck=torch.load(checkpoint,map_location='cpu',weights_only=False)
-        model=build_model(ck['config']['model']); model.load_state_dict(ck['state_dict'])
-        model=model.to(device,memory_format=torch.channels_last)
+        from src.inference import load_deployed_model
+        model,ck=load_deployed_model(checkpoint,device)
         for split in all_probs:
             ds=Images(args.root,args.cache,split,ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
             dl=DataLoader(ds,batch_size=args.batch_size,num_workers=args.workers,pin_memory=device.type=='cuda')

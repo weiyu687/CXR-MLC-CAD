@@ -23,7 +23,7 @@ def main():
     out=Path(args.out)
     if out.exists():raise FileExistsError('Choose a new package directory; existing package preserved')
     out.mkdir(parents=True)
-    for f in ['predict.py','train.py','requirements.txt','requirements-competition.txt']:
+    for f in ['predict.py','train.py','cost.py','requirements.txt','requirements-competition.txt']:
         shutil.copy2(f,out/f)
     shutil.copytree('src',out/'src',ignore=shutil.ignore_patterns('__pycache__'))
     (out/'models').mkdir()
@@ -34,8 +34,21 @@ def main():
         ck=torch.load(target,map_location='cpu',weights_only=False)
         checkpoint_info.append({'path':paths[-1],'training_configuration':ck['config'],
                                 'epoch':ck.get('epoch'),'training_selection_aggregation':ck.get('selection_aggregation','mean'),
-                                'training_selection_metrics':ck.get('metrics'),'provenance':ck.get('provenance')})
+                                'training_selection_metrics':ck.get('metrics'),'holdout_selection_metrics':ck.get('holdout_metrics'),
+                                'provenance':ck.get('provenance')})
         del ck
+    upstream=[]
+    for item in checkpoint_info:
+        pretraining=(item.get('provenance') or {}).get('pretraining')
+        if pretraining and pretraining['sha256'] not in [p['sha256'] for p in upstream]:
+            source=Path(pretraining['cached_file'])
+            assert hashlib.sha256(source.read_bytes()).hexdigest()==pretraining['sha256']
+            folder=out/'pretrain_model';folder.mkdir(exist_ok=True)
+            shutil.copy2(source,folder/source.name)
+            upstream.append(pretraining)
+    if upstream:
+        shutil.copytree('docs/pretraining',out/'licenses')
+        (out/'pretraining_sources.json').write_text(json.dumps(upstream,indent=2),encoding='utf-8')
     assert total<=500_000_000,'Model files exceed 500MB'
     for f in ['submission.csv','report.json']:
         shutil.copy2(Path(args.predictions)/f,out/f)
@@ -49,7 +62,8 @@ def main():
         assert latency['checkpoint_bytes']==total and latency['models']==len(paths)
         assert latency['tta']==report['arguments']['tta']
         assert latency['runtime']==report['runtime']
-        assert latency['test_csv_sha256']==hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()
+        timing_split=latency.get('split','test')
+        assert latency.get('dataset_csv_sha256',latency['test_csv_sha256'])==hashlib.sha256((Path(args.root)/(timing_split+'.csv')).read_bytes()).hexdigest()
         shutil.copy2(args.latency_report,out/'latency.json')
     if args.selection_report:
         selection=json.loads(Path(args.selection_report).read_text(encoding='utf-8'))
@@ -79,9 +93,16 @@ def main():
 实际生成时的运行环境见 report.json 的 runtime 字段。若包含 latency.json / selection.json，它们分别记录同一模型与环境的本机样本测时及验证集选择依据；本机样本通过不等同于 T4 或整个测试集最坏延迟达标。
 
 模型仅以官方 train 划分训练，valid 用于模型和阈值选择。验证得分不是隐藏测试成绩。T4 推理延迟与官方环境仍需目标机复验。未执行网站提交。
+
+若有 pretrain_model/ 和 licenses/，它们是官网 2026-10-23 规则第 1 条允许的非医学 ImageNet 初始化及其核验材料；不参与推理加载。医学数据仅来自比赛训练集。
+
+新版官方测时入口：`python cost.py submission.csv <pictures_100> <pictures_5> --root <official_data_root>`。使用 5 张预热、100 张输入、连续 3 轮，并计入实际结果写出。为与检查级 CSV 一致，脚本对每张计时输入重复其完整检查推理，必要时从 --root 读取同检查配套图像；这是比单张前向更保守的口径。其结果不能等同于官方 T4 复测。样本数不足时仅可用 --samples / --warmup 做脚本检查，不算官方协议测时。
 '''
     (out/'README.md').write_text(readme,encoding='utf-8')
-    manifest={'checks':checks,'model_bytes':total,'files':{}}
+    deployment_bytes=total+(out/'report.json').stat().st_size+(out/'labels.json').stat().st_size
+    assert deployment_bytes<=500_000_000,'Deployed weights and necessary calibration exceed 500MB'
+    manifest={'checks':checks,'model_bytes':total,'deployment_bytes':deployment_bytes,
+              'unused_upstream_weights_included_for_audit_only':bool(upstream),'files':{}}
     for p in sorted(out.rglob('*')):
         if p.is_file():manifest['files'][p.relative_to(out).as_posix()]=hashlib.sha256(p.read_bytes()).hexdigest()
     (out/'manifest.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')

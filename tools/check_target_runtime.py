@@ -30,8 +30,8 @@ def main():
     device=torch.device(args.device)
     if device.type=='cuda':assert torch.cuda.is_available(),'CUDA runtime is unavailable'
     cases=[]
-    def forward(model,size):
-        ds=Images(args.root,args.cache,'test',size)
+    def forward(model,size,normalization='legacy'):
+        ds=Images(args.root,args.cache,'test',size,normalization=normalization)
         x=torch.stack([ds[i][0] for i in range(min(args.samples,len(ds)))]).to(device,memory_format=torch.channels_last)
         model=model.to(device,memory_format=torch.channels_last).eval()
         with torch.inference_mode(),torch.autocast(device_type=device.type,enabled=device.type=='cuda'):
@@ -41,7 +41,7 @@ def main():
     for path in args.checkpoint:
         ck=torch.load(path,map_location='cpu',weights_only=False)
         model=build_model(ck['config']['model']);model.load_state_dict(ck['state_dict'],strict=True)
-        count=forward(model,ck['config']['size'])
+        count=forward(model,ck['config']['size'],ck['config'].get('normalization','legacy'))
         cases.append({'checkpoint':path,'sha256':hashlib.sha256(Path(path).read_bytes()).hexdigest(),
                       'architecture':ck['config']['model'],'weight_loading_verified':True,'images':count,'finite_probabilities':True})
         del ck,model

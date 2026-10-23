@@ -11,15 +11,16 @@ def main():
     ap.add_argument('--root',default='raw_data/cxr_first')
     ap.add_argument('--out',required=True)
     ap.add_argument('--workers',type=int,default=2)
+    ap.add_argument('--split',choices=['train','valid','test'],default='test')
     args=ap.parse_args();source=Path(args.root);out=Path(args.out)
     out.mkdir(parents=True,exist_ok=True)
-    if any((out/name).exists() for name in ['train','valid','train.csv','valid.csv']):
-        raise ValueError('Destination must be a test-only directory')
-    metadata=(source/'test.csv').read_bytes()
-    (out/'test.csv').write_bytes(metadata)
-    with (source/'test.csv').open(newline='') as f:rows=list(csv.DictReader(f))
+    if any((out/name).exists() for split in ['train','valid','test'] if split!=args.split for name in [split,split+'.csv']):
+        raise ValueError('Destination must contain only the selected split')
+    metadata=(source/(args.split+'.csv')).read_bytes()
+    (out/(args.split+'.csv')).write_bytes(metadata)
+    with (source/(args.split+'.csv')).open(newline='') as f:rows=list(csv.DictReader(f))
     def copy(row):
-        relative=Path('test')/row['Subject_id']/row['Study_id']/(row['Dicom_id']+'.jpg')
+        relative=Path(args.split)/row['Subject_id']/row['Study_id']/(row['Dicom_id']+'.jpg')
         data=(source/relative).read_bytes();digest=hashlib.sha256(data).hexdigest()
         destination=out/relative
         if out.resolve() not in destination.resolve().parents:
@@ -39,7 +40,7 @@ def main():
         files=dict(pool.map(copy,rows))
     report={'images':len(files),'studies':len({r['Study_id'] for r in rows}),
             'bytes':sum(f['bytes'] for f in files.values()),'metadata_sha256':hashlib.sha256(metadata).hexdigest(),
-            'all_images_match_original':True,'contains_training_or_validation':False,'files':files}
+            'all_images_match_original':True,'contains_training_or_validation':args.split!='test','split':args.split,'files':files}
     (out/'staging_manifest.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     print(json.dumps({k:v for k,v in report.items() if k!='files'},indent=2))
 if __name__=='__main__':main()

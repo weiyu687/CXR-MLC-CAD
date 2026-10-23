@@ -14,17 +14,14 @@ from torch.utils.data import DataLoader
 from src.data import Images, aggregate
 from src.model import build_model, AsymmetricLoss
 from src.metrics import evaluate
+from src.inference import forward_probabilities
 
 @torch.inference_mode()
 def predict(model, loader, device, tta=False):
     model.eval()
     result = np.zeros((len(loader.dataset.df), 10), dtype=np.float32)
     for x, _, idx in loader:
-        x = x.to(device, non_blocking=True).to(memory_format=torch.channels_last)
-        with torch.autocast(device_type=device.type, enabled=device.type=='cuda'):
-            p = model(x).float().sigmoid()
-            if tta:
-                p = (p + model(x.flip(-1)).float().sigmoid())/2
+        p=forward_probabilities(model,x,device,tta)
         result[idx.numpy()] = p.cpu().numpy()
     return result
 

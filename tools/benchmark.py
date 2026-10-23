@@ -11,6 +11,7 @@ import torch
 from src.data import Images
 from src.model import build_model
 from src.inference import configure_deterministic_inference,runtime_information
+from src.inference import load_deployed_model,forward_probabilities
 from src.metrics import submission_probabilities
 
 def main():
@@ -21,6 +22,7 @@ def main():
     ap.add_argument('--root',default='raw_data/cxr_first')
     ap.add_argument('--samples',type=int,default=60)
     ap.add_argument('--out',default='outputs/latency.json')
+    ap.add_argument('--split',choices=['train','valid','test'],default='test')
     args=ap.parse_args();torch.set_num_threads(4)
     configure_deterministic_inference()
     checkpoint_hashes=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
@@ -34,10 +36,8 @@ def main():
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     members=[]
     for checkpoint in args.checkpoint:
-        ck=torch.load(checkpoint,map_location='cpu',weights_only=False)
-        model=build_model(ck['config']['model']);model.load_state_dict(ck['state_dict'])
-        model=model.to(device,memory_format=torch.channels_last).eval()
-        ds=Images(args.root,'__no_cache__','test',ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
+        model,ck=load_deployed_model(checkpoint,device)
+        ds=Images(args.root,'__no_cache__',args.split,ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
         members.append((model,ds))
     ds=members[0][1]
     indices=np.random.default_rng(123).choice(len(ds),min(len(ds),args.samples+10),replace=False)
@@ -49,10 +49,7 @@ def main():
             member_predictions=[]
             for model,member_ds in members:
                 x,_,_=member_ds[int(idx)]
-                x=x.unsqueeze(0).to(device,memory_format=torch.channels_last)
-                with torch.autocast(device_type=device.type,enabled=device.type=='cuda'):
-                    p=model(x).float().sigmoid()
-                    if args.tta:p=(p+model(x.flip(-1)).float().sigmoid())/2
+                p=forward_probabilities(model,x.unsqueeze(0),device,args.tta)
                 member_predictions.append(p.cpu().numpy())
             p=submission_probabilities(np.mean(member_predictions,axis=0))
             decision=p>=gates
@@ -63,7 +60,8 @@ def main():
             'deterministic_inference':True,
             'checkpoint_sha256':checkpoint_hashes,'runtime':runtime_information(device),
             'data_root':str(Path(args.root).resolve()),
-            'test_csv_sha256':hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest(),
+            'split':args.split,'dataset_csv_sha256':hashlib.sha256((Path(args.root)/(args.split+'.csv')).read_bytes()).hexdigest(),
+            'test_csv_sha256':hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest() if args.split=='test' else None,
             'includes':'disk read, original JPEG decode, preprocessing, transfer, forward, sigmoid, CPU output, ensemble mean, probability quantization and threshold comparison',
             'mean_ms':float(np.mean(elapsed)),'p50_ms':float(np.median(elapsed)),
             'p95_ms':float(np.percentile(elapsed,95)),'max_ms':float(max(elapsed)),

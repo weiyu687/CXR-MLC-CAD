@@ -3,6 +3,20 @@ import os
 import platform
 import torch
 
+def load_deployed_model(checkpoint,device):
+    from .model import build_model
+    ck=torch.load(checkpoint,map_location='cpu',weights_only=False)
+    model=build_model(ck['config']['model'])
+    model.load_state_dict(ck['state_dict'],strict=True)
+    return model.to(device,memory_format=torch.channels_last).eval(),ck
+
+def forward_probabilities(model,x,device,tta=False):
+    x=x.to(device,non_blocking=True).to(memory_format=torch.channels_last)
+    with torch.autocast(device_type=device.type,enabled=device.type=='cuda'):
+        p=model(x).float().sigmoid()
+        if tta:p=(p+model(x.flip(-1)).float().sigmoid())/2
+    return p
+
 def configure_deterministic_inference():
     os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG',':4096:8')
     torch.backends.cudnn.benchmark=False

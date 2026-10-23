@@ -35,6 +35,8 @@ def main():
     assert hashes==report['checkpoint_sha256']
     model_bytes=sum((bundle/item['path']).stat().st_size for item in info)
     assert model_bytes==manifest['model_bytes'] and model_bytes<=500_000_000
+    deployment_bytes=model_bytes+(bundle/'report.json').stat().st_size+(bundle/'labels.json').stat().st_size
+    if 'deployment_bytes' in manifest:assert deployment_bytes==manifest['deployment_bytes'] and deployment_bytes<=500_000_000
     checks=validate_submission(bundle/'submission.csv',args.root)
     csv=pd.read_csv(bundle/'submission.csv')
     assert csv.groupby('Predict_class').Gate.nunique().eq(1).all()
@@ -58,10 +60,19 @@ def main():
         assert latency['checkpoint_bytes']==model_bytes and latency['models']==len(info)
         assert latency['runtime']==report['runtime'] and latency['tta']==report['arguments']['tta']
         assert latency['batch_size']==1 and latency['cache'] is False
-        assert latency['test_csv_sha256']==hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()
-        assert latency['samples']>=10 and np.isfinite(latency['max_ms']) and latency['max_ms']<=100
+        timing_split=latency.get('split','test')
+        if timing_split=='test':assert latency['test_csv_sha256']==hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()
+        else:
+            assert timing_split in ['train','valid'] and len(latency['dataset_csv_sha256'])==64
+            result['latency_selection_split']=timing_split
+        selection=json.loads((bundle/'selection.json').read_text(encoding='utf-8')) if (bundle/'selection.json').exists() else {}
+        statistic=selection.get('local_limit_statistic','max')
+        limit=selection.get('local_sample_limit_ms',100)
+        assert statistic in ['max','mean'] and 0<limit<=100
+        assert latency['samples']>=10 and np.isfinite(latency[statistic+'_ms']) and latency[statistic+'_ms']<=limit
         result.update(local_latency_sample_limit_passed=True,local_latency_samples=latency['samples'],
-                      local_latency_max_ms=latency['max_ms'])
+                      local_latency_max_ms=latency['max_ms'],local_latency_limit_statistic=statistic,
+                      local_latency_mean_ms=latency['mean_ms'])
     if args.reproduced:
         validate_submission(args.reproduced,args.root)
         reproduced_report=json.loads(Path(args.reproduced).with_name('report.json').read_text(encoding='utf-8'))
