@@ -21,6 +21,7 @@ def main():
     required={'predict.py','train.py','requirements.txt','requirements-competition.txt','README.md',
               'labels.json','checkpoint_info.json','report.json','submission.csv','src/data.py','src/preprocessing.py','src/inference.py'}
     if not required.issubset(manifest['files']):raise ValueError('Required package files missing from manifest')
+    if 'cost.py' in manifest['files']:assert 'src/deployment.py' in manifest['files']
     for relative,expected in manifest['files'].items():
         path=(bundle/relative).resolve()
         if bundle not in path.parents:raise ValueError('Manifest path escapes package')
@@ -37,6 +38,12 @@ def main():
     assert model_bytes==manifest['model_bytes'] and model_bytes<=500_000_000
     deployment_bytes=model_bytes+(bundle/'report.json').stat().st_size+(bundle/'labels.json').stat().st_size
     if 'deployment_bytes' in manifest:assert deployment_bytes==manifest['deployment_bytes'] and deployment_bytes<=500_000_000
+    for item in info:
+        upstream=(item.get('provenance') or {}).get('pretraining')
+        if upstream:
+            upstream_path=bundle/'pretrain_model'/upstream['url'].rsplit('/',1)[-1]
+            assert hashlib.sha256(upstream_path.read_bytes()).hexdigest()==upstream['sha256']
+            assert (bundle/'licenses'/'torchvision-LICENSE.txt').is_file()
     checks=validate_submission(bundle/'submission.csv',args.root)
     csv=pd.read_csv(bundle/'submission.csv')
     assert csv.groupby('Predict_class').Gate.nunique().eq(1).all()

@@ -26,6 +26,7 @@ def main():
     ap.add_argument('--latency-ms',type=float,default=100)
     ap.add_argument('--latency-statistic',choices=['max','mean'],default='max')
     ap.add_argument('--batch-size',type=int,default=64,help='Use 1 for exact alignment with the official serial cost protocol')
+    ap.add_argument('--study-timing',action='store_true')
     ap.add_argument('--timing-root',help='Use a verified train/valid SSD copy to screen computation before final testing')
     ap.add_argument('--timing-split',choices=['train','valid','test'],default='test')
     args=ap.parse_args()
@@ -69,13 +70,14 @@ def main():
     (work/'ranked_candidates.json').write_text(json.dumps(candidates,indent=2),encoding='utf-8')
     timing_cache={};selected=None;chosen_timing=None
     for candidate in candidates:
-        key=(tuple(candidate['checkpoints']),candidate['tta'])
+        key=(tuple(candidate['checkpoints']),candidate['tta'],candidate['aggregation'] if args.study_timing else None)
         if key not in timing_cache:
             path=work/f'latency_{len(timing_cache):02d}.json'
             command=['tools/benchmark.py','--checkpoint',*candidate['checkpoints'],'--root',args.timing_root or ssd,
                      '--split',args.timing_split,
                      '--samples',str(args.samples),'--out',path]
             if candidate['tta']:command.append('--tta')
+            if args.study_timing:command.extend(['--study-level','--aggregation',candidate['aggregation']])
             execute(command,path.with_suffix('.log'))
             timing_cache[key]=(path,read(path))
         path,timing=timing_cache[key]

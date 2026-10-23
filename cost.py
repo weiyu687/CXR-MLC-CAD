@@ -19,6 +19,7 @@ import torch
 from src.data import Images,aggregate
 from src.inference import configure_deterministic_inference,load_deployed_model,forward_probabilities,runtime_information
 from src.metrics import submission_probabilities
+from src.deployment import StudyPredictor
 
 def main():
     ap=argparse.ArgumentParser()
@@ -39,15 +40,14 @@ def main():
     root=Path(args.root or report['arguments']['root'])
     if not (root/'test.csv').exists():raise FileNotFoundError('Provide --root or CXR_DATA_ROOT with test.csv and complete original test images')
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    members=[]
+    checkpoint_paths=[]
     for item,digest in zip(info,report['checkpoint_sha256']):
         path=bundle/item['path']
         assert hashlib.sha256(path.read_bytes()).hexdigest()==digest
-        model,ck=load_deployed_model(path,device)
-        ds=Images(root,'__no_cache__','test',ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
-        members.append((model,ds))
-    assert len(members)==len(report['checkpoint_sha256'])>0
-    meta=members[0][1].df
+        checkpoint_paths.append(path)
+    assert len(checkpoint_paths)==len(report['checkpoint_sha256'])>0
+    predictor=StudyPredictor(checkpoint_paths,root,device,report['arguments']['aggregation'],report['arguments']['tta'])
+    meta=predictor.df
     positions={name:i for i,name in enumerate(meta.Dicom_id)}
     study_rows={s:g.index.to_numpy() for s,g in meta.groupby('Study_id',sort=False)}
     expected=pd.read_csv(args.submission).set_index(['Study_id','Predict_class'])
@@ -67,27 +67,7 @@ def main():
     out=Path(args.out);out.mkdir(parents=True,exist_ok=True)
     gates=np.array(report['validation']['gates'])
     elapsed=np.zeros((args.rounds,args.samples));max_difference=0.
-    def infer(path):
-        # Read the specified timing file; complete fixed study images are then
-        # decoded by precisely the same dataset used in predict.py.
-        path.read_bytes()
-        study=meta.iloc[positions[path.stem]].Study_id
-        rows=study_rows[study]
-        small=meta.iloc[rows].reset_index(drop=True)
-        # Preserve the deployed frontal/weighted/mean/max semantics exactly.
-        # For frontal mode skip rows guaranteed to have zero aggregation weight.
-        if report['arguments']['aggregation']=='frontal':
-            fronts=small.ViewPosition.isin(['AP','PA','PA LLD']).to_numpy()
-            if fronts.any():rows=rows[fronts];small=small.loc[fronts].reset_index(drop=True)
-        probs=[]
-        for model,ds in members:
-            image=[]
-            for idx in rows:
-                x,_,_=ds[int(idx)]
-                image.append(forward_probabilities(model,x.unsqueeze(0),device,report['arguments']['tta']).cpu().numpy()[0])
-            _,p,_=aggregate(small,np.stack(image),report['arguments']['aggregation'])
-            probs.append(p[0])
-        return study,submission_probabilities(np.mean(probs,axis=0))
+    infer=predictor
     with torch.inference_mode():
         for path in warmup:infer(path)
         for round_index in range(args.rounds):
