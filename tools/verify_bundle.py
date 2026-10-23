@@ -36,7 +36,7 @@ def main():
     assert hashes==report['checkpoint_sha256']
     model_bytes=sum((bundle/item['path']).stat().st_size for item in info)
     assert model_bytes==manifest['model_bytes'] and model_bytes<=500_000_000
-    deployment_bytes=model_bytes+(bundle/'report.json').stat().st_size+(bundle/'labels.json').stat().st_size
+    deployment_bytes=model_bytes+sum((bundle/name).stat().st_size for name in ['report.json','labels.json','checkpoint_info.json'])
     if 'deployment_bytes' in manifest:assert deployment_bytes==manifest['deployment_bytes'] and deployment_bytes<=500_000_000
     for item in info:
         upstream=(item.get('provenance') or {}).get('pretraining')
@@ -50,7 +50,7 @@ def main():
     gates=csv.groupby('Predict_class').Gate.first().sort_index().values
     gate_tolerance=max(1e-15,.51*10**(-report.get('csv_decimal_places',8)))
     assert np.allclose(gates,report['validation']['gates'],rtol=0,atol=gate_tolerance)
-    result={'folder':str(bundle),'files_verified':len(manifest['files']),'model_bytes':model_bytes,
+    result={'folder':str(bundle),'files_verified':len(manifest['files']),'model_bytes':model_bytes,'deployment_bytes':deployment_bytes,
             'submission':checks,'frozen_gates_match':True,'model_hashes_match':True,
             'independent_inference_reproduced':False,'T4_verified':False}
     if report.get('gate_policy')=='half_step_between_distinct_validation_probabilities':

@@ -99,7 +99,7 @@ def main():
 新版官方测时入口：`python cost.py submission.csv <pictures_100> <pictures_5> --root <official_data_root>`。使用 5 张预热、100 张输入、连续 3 轮，并计入实际结果写出。为与检查级 CSV 一致，脚本对每张计时输入重复其完整检查推理，必要时从 --root 读取同检查配套图像；这是比单张前向更保守的口径。其结果不能等同于官方 T4 复测。样本数不足时仅可用 --samples / --warmup 做脚本检查，不算官方协议测时。
 '''
     (out/'README.md').write_text(readme,encoding='utf-8')
-    deployment_bytes=total+(out/'report.json').stat().st_size+(out/'labels.json').stat().st_size
+    deployment_bytes=total+sum((out/name).stat().st_size for name in ['report.json','labels.json','checkpoint_info.json'])
     assert deployment_bytes<=500_000_000,'Deployed weights and necessary calibration exceed 500MB'
     manifest={'checks':checks,'model_bytes':total,'deployment_bytes':deployment_bytes,
               'unused_upstream_weights_included_for_audit_only':bool(upstream),'files':{}}
