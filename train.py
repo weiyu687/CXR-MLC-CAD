@@ -49,6 +49,7 @@ def main():
     ap.add_argument('--weight-decay',type=float,default=0.02)
     ap.add_argument('--positive-weight',action='store_true',help='Square-root inverse positive frequency, capped at 5')
     ap.add_argument('--patient-holdout',type=float,default=0.,help='Official training patients reserved for an independent selection split')
+    ap.add_argument('--head-lr-mult',type=float,help='Default 5 for a newly initialized ImageNet classifier, otherwise 1')
     args = ap.parse_args()
     if args.pretrained:
         if args.init or args.resume:raise ValueError('Choose pretrained initialization or a competition checkpoint')
@@ -56,6 +57,8 @@ def main():
     if args.init:
         initial_config=torch.load(args.init,map_location='cpu',weights_only=False)['config']
         args.normalization=initial_config.get('normalization','legacy')
+    if args.head_lr_mult is None:args.head_lr_mult=5. if args.pretrained else 1.
+    if not 0<args.head_lr_mult<=100:raise ValueError('Invalid classifier learning-rate multiplier')
     def git_output(arguments):
         try:
             result=subprocess.run(['git',*arguments],capture_output=True,text=True,timeout=5)
@@ -112,7 +115,14 @@ def main():
             model.load_state_dict(state)
     ema = copy.deepcopy(model).eval()
     for p in ema.parameters(): p.requires_grad_(False)
-    optimizer = torch.optim.AdamW(model.parameters(),lr=args.lr,weight_decay=args.weight_decay)
+    parameters=model.parameters()
+    if args.head_lr_mult!=1:
+        head=[p for n,p in model.named_parameters() if n.startswith(('fc.','classifier.','head.'))]
+        head_ids={id(p) for p in head}
+        if not head:raise ValueError('Classifier parameters not found')
+        parameters=[{'params':[p for p in model.parameters() if id(p) not in head_ids],'lr_scale':1.},
+                    {'params':head,'lr_scale':args.head_lr_mult}]
+    optimizer = torch.optim.AdamW(parameters,lr=args.lr,weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler('cuda', enabled=device.type=='cuda')
     criterion = AsymmetricLoss() if args.loss=='asl' else torch.nn.BCEWithLogitsLoss()
     if args.positive_weight:
@@ -135,7 +145,7 @@ def main():
         for step,(x,y,_) in enumerate(tl):
             progress=(epoch+step/len(tl))
             lr=args.lr*min(1.,(progress+0.1)/2)*0.5*(1+math.cos(math.pi*progress/args.epochs))
-            for group in optimizer.param_groups: group['lr']=lr
+            for group in optimizer.param_groups: group['lr']=lr*group.get('lr_scale',1.)
             x=x.to(device,non_blocking=True).to(memory_format=torch.channels_last); y=y.to(device,non_blocking=True)
             if args.mixup>0 and random.random()<0.5:
                 lam=float(np.random.beta(args.mixup,args.mixup))

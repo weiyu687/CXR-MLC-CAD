@@ -1,5 +1,6 @@
 """Conservative serial full-study prediction shared by timing entry points."""
 from pathlib import Path
+import hashlib
 import numpy as np
 from .data import Images,aggregate
 from .inference import load_deployed_model,forward_probabilities
@@ -23,8 +24,13 @@ class StudyPredictor:
 
     def __call__(self,path):
         path=Path(path)
-        path.read_bytes()
-        study=self.df.iloc[self.positions[path.stem]].Study_id
+        input_bytes=path.read_bytes()
+        index=self.positions[path.stem]
+        original=self.original_path(index)
+        if path.resolve()!=original.resolve():
+            if hashlib.sha256(input_bytes).digest()!=hashlib.sha256(original.read_bytes()).digest():
+                raise ValueError('Timing input differs from the original image with the same ID')
+        study=self.df.iloc[index].Study_id
         rows=self.study_rows[study]
         small=self.df.iloc[rows].reset_index(drop=True)
         if self.aggregation=='frontal':
