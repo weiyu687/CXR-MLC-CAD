@@ -50,6 +50,7 @@ def main():
     ap.add_argument('--positive-weight',action='store_true',help='Square-root inverse positive frequency, capped at 5')
     ap.add_argument('--patient-holdout',type=float,default=0.,help='Official training patients reserved for an independent selection split')
     ap.add_argument('--head-lr-mult',type=float,help='Default 5 for a newly initialized ImageNet classifier, otherwise 1')
+    ap.add_argument('--patience',type=int,default=0,help='Stop after this many epochs without an improvement in the selection split; 0 disables')
     args = ap.parse_args()
     if args.pretrained:
         if args.init or args.resume:raise ValueError('Choose pretrained initialization or a competition checkpoint')
@@ -131,12 +132,13 @@ def main():
         pos=targets.sum(0)
         weights=np.sqrt((len(targets)-pos)/np.maximum(pos,1)).clip(1,5)
         criterion=torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weights,dtype=torch.float32,device=device))
-    best, start = -1., 0
+    best, start,stale_epochs = -1., 0,0
     if args.resume:
         ck = torch.load(args.resume,map_location='cpu',weights_only=False)
         model.load_state_dict(ck['state_dict']); ema.load_state_dict(ck['ema'])
         optimizer.load_state_dict(ck['optimizer']); scaler.load_state_dict(ck['scaler'])
         start,best = ck['epoch']+1,ck['best']
+        stale_epochs=ck.get('stale_epochs',0)
         random.setstate(ck['random']); np.random.set_state(ck['numpy']); torch.set_rng_state(ck['torch'])
         if 'cuda_rng' in ck and device.type=='cuda': torch.cuda.set_rng_state_all(ck['cuda_rng'])
     print(json.dumps({'device':str(device),'model':args.model,'train_studies':len(train),'valid_images':len(valid),'parameters':sum(p.numel() for p in model.parameters())}),flush=True)
@@ -189,12 +191,18 @@ def main():
         print(json.dumps(record),flush=True)
         if selection_score>best:
             best=selection_score
+            stale_epochs=0
             torch.save({'state_dict':{k:v.cpu() for k,v in ema.state_dict().items()},'config':vars(args),'epoch':epoch+1,
                         'selection_aggregation':selected,'metrics':metrics,'holdout_metrics':holdout_metrics,'provenance':provenance},out/'best.pt')
             np.savez_compressed(out/'valid_predictions.npz',probabilities=predictions,study_probabilities=p,targets=y,study_ids=ids)
             (out/'metrics.json').write_text(json.dumps(record,indent=2),encoding='utf-8')
+        else:stale_epochs+=1
         torch.save({'state_dict':model.state_dict(),'ema':ema.state_dict(),'optimizer':optimizer.state_dict(),'scaler':scaler.state_dict(),
                     'epoch':epoch,'best':best,'random':random.getstate(),'numpy':np.random.get_state(),'torch':torch.get_rng_state(),
-                    'cuda_rng':torch.cuda.get_rng_state_all() if device.type=='cuda' else []},out/'last.pt')
+                    'cuda_rng':torch.cuda.get_rng_state_all() if device.type=='cuda' else [],
+                    'config':vars(args),'provenance':provenance,'stale_epochs':stale_epochs},out/'last.pt')
+        if args.patience and stale_epochs>=args.patience:
+            print('EARLY_STOP selection split did not improve for '+str(stale_epochs)+' epochs',flush=True)
+            break
     print('TRAINING_COMPLETE best_auc='+str(best),flush=True)
 if __name__=='__main__': main()

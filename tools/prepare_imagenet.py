@@ -14,7 +14,7 @@ def main():
     assert 'Redistribution and use' in license_text
     (materials/'torchvision-LICENSE.txt').write_text(license_text,encoding='utf-8')
     records=[]
-    for name in ['tv_resnet50','tv_efficientnet_v2_s']:
+    for name in ['tv_resnet50','tv_efficientnet_v2_s','tv_densenet121']:
         model=build_model(name,pretrained=True).cuda().eval()
         with torch.inference_mode(),torch.autocast('cuda'):
             output=model(torch.randn(2,3,320,320,device='cuda').to(memory_format=torch.channels_last))

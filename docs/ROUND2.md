@@ -36,3 +36,9 @@ PDF 同时明确：允许固定模型集成/TTA；禁止跨测试样本统计拟
 审计入口：`python -m tools.audit_generalization`；当前训练入口：`tools/run_imagenet_round2.ps1`，后续高分辨率训练与交付入口 `tools/finish_imagenet_round2.ps1`。患者清单、权重、逐例预测与详细审计保留本地，仅公开汇总说明。
 
 补充：已经启动的 ResNet50 阶段保持原学习率配置不变。后续新初始化 ImageNet 分类器（EfficientNetV2-S）采用分类头学习率为骨干的 5 倍，加快随机初始化任务头的适应；已有比赛权重的微调默认倍数 1。实际值写入每次实验 config.json，旧试验缺失字段表示 1。
+
+### 内部留出早停及架构扩展
+
+ResNet50 内部患者留出在第 5 轮达到 0.806576，之后第 6/7/8 轮连续下降，按三轮无提升停止。完成 8 轮，第 9 轮部分计算作废、未用于验证或权重选择；保留第 5 轮（官方验证 AUC 0.789145）。官方验证峰值出现在其他轮次，不据此改选内部留出权重。后续脚本加入同样的 patience 机制，保留实际训练轮数。
+
+新增 torchvision 官方 ImageNet DenseNet121 候选：320 输入，最多 12 轮，验证连续 4 轮不升停止，骨干学习率 0.0001、分类头 5 倍；同样正位优先、mixup/擦除和加权 BCE。其上游权重与另外两种架构均完成真实下载、全文许可证与 SHA-256 记录、两张随机输入 GPU 输出检查（不是医学验证分数）。最终四候选改为全量 ResNet50、320 EfficientNetV2-S、448/ASL EfficientNetV2-S 和 ImageNet DenseNet121；旧包仅作为固定对照。
