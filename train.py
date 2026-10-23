@@ -1,4 +1,4 @@
-"""Train from scratch on the official training split, select on study-level AUC."""
+"""Train on official data with random or audited non-medical ImageNet initialization."""
 import argparse
 import copy
 import json
@@ -43,7 +43,9 @@ def main():
     ap.add_argument('--loss', choices=['bce','asl'], default='bce')
     ap.add_argument('--selection-aggregation',choices=['mean','max','frontal','weighted','auto'],default='mean')
     ap.add_argument('--resume')
-    ap.add_argument('--init',help='Initialize only from a checkpoint trained on official training data')
+    ap.add_argument('--init',help='Initialize from an existing competition checkpoint')
+    ap.add_argument('--pretrained',action='store_true',help='Audited torchvision ImageNet weights permitted by official PDF article 1')
+    ap.add_argument('--normalization',choices=['legacy','imagenet'],default='legacy')
     ap.add_argument('--frontal-training',action='store_true')
     ap.add_argument('--regularize',action='store_true')
     ap.add_argument('--mixup',type=float,default=0.)
@@ -51,6 +53,12 @@ def main():
     ap.add_argument('--positive-weight',action='store_true',help='Square-root inverse positive frequency, capped at 5')
     ap.add_argument('--patient-holdout',type=float,default=0.,help='Official training patients reserved for an independent selection split')
     args = ap.parse_args()
+    if args.pretrained:
+        if args.init or args.resume:raise ValueError('Choose pretrained initialization or a competition checkpoint')
+        args.normalization='imagenet'
+    if args.init:
+        initial_config=torch.load(args.init,map_location='cpu',weights_only=False)['config']
+        args.normalization=initial_config.get('normalization','legacy')
     def git_output(arguments):
         try:
             result=subprocess.run(['git',*arguments],capture_output=True,text=True,timeout=5)
@@ -71,8 +79,8 @@ def main():
     (out/'config.json').write_text(json.dumps(vars(args),indent=2),encoding='utf-8')
     (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     train = Images(args.root,args.cache,'train',args.size,train=True,
-                   frontal_training=args.frontal_training,regularize=args.regularize)
-    valid = Images(args.root,args.cache,'valid',args.size)
+                   frontal_training=args.frontal_training,regularize=args.regularize,normalization=args.normalization)
+    valid = Images(args.root,args.cache,'valid',args.size,normalization=args.normalization)
     holdout=None
     if args.patient_holdout:
         if args.init or args.resume:raise ValueError('Patient holdout must train from scratch to avoid prior checkpoint leakage')
@@ -80,7 +88,7 @@ def main():
         patients=np.sort(train.df.Subject_id.unique())
         rng=np.random.default_rng(args.seed)
         held=set(rng.choice(patients,int(len(patients)*args.patient_holdout),replace=False))
-        holdout=Images(args.root,args.cache,'train',args.size)
+        holdout=Images(args.root,args.cache,'train',args.size,normalization=args.normalization)
         holdout.df=holdout.df[holdout.df.Subject_id.isin(held)].reset_index(drop=True)
         train.groups=[g for g in train.groups if train.df.iloc[g[0]].Subject_id not in held]
         assert not set(train.df.iloc[[g[0] for g in train.groups]].Subject_id)&set(holdout.df.Subject_id)
@@ -89,9 +97,15 @@ def main():
     tl = DataLoader(train,shuffle=True,drop_last=True,**kwargs)
     vl = DataLoader(valid,shuffle=False,**kwargs)
     hl=DataLoader(holdout,shuffle=False,**kwargs) if holdout is not None else None
-    model = build_model(args.model).to(device, memory_format=torch.channels_last)
+    model = build_model(args.model,pretrained=args.pretrained).to(device, memory_format=torch.channels_last)
+    if args.pretrained:
+        provenance['pretraining']=model.pretraining_provenance
+        (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     if args.init:
         init=torch.load(args.init,map_location='cpu',weights_only=False)
+        if init.get('provenance',{}).get('pretraining'):
+            provenance['pretraining']=init['provenance']['pretraining']
+            (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
         state=init['state_dict']
         if args.model.endswith('_cap') and not init['config']['model'].endswith('_cap'):
             model.backbone.load_state_dict({k:v for k,v in state.items() if not k.startswith('fc.')},strict=True)

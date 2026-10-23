@@ -59,7 +59,7 @@ def main():
         model=build_model(ck['config']['model']); model.load_state_dict(ck['state_dict'])
         model=model.to(device,memory_format=torch.channels_last)
         for split in all_probs:
-            ds=Images(args.root,args.cache,split,ck['config']['size'])
+            ds=Images(args.root,args.cache,split,ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
             dl=DataLoader(ds,batch_size=args.batch_size,num_workers=args.workers,pin_memory=device.type=='cuda')
             p=predict(model,dl,device,args.tta)
             if args.export_images:

@@ -37,7 +37,7 @@ def main():
         ck=torch.load(checkpoint,map_location='cpu',weights_only=False)
         model=build_model(ck['config']['model']);model.load_state_dict(ck['state_dict'])
         model=model.to(device,memory_format=torch.channels_last).eval()
-        ds=Images(args.root,'__no_cache__','test',ck['config']['size'])
+        ds=Images(args.root,'__no_cache__','test',ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
         members.append((model,ds))
     ds=members[0][1]
     indices=np.random.default_rng(123).choice(len(ds),min(len(ds),args.samples+10),replace=False)

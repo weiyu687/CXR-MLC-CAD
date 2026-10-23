@@ -28,7 +28,7 @@ def frame(root, split):
 
 class Images(Dataset):
     def __init__(self, root, cache, split, size, train=False, study_sampling=True,
-                 frontal_training=False, regularize=False):
+                 frontal_training=False, regularize=False,normalization='legacy'):
         self.root, self.cache, self.split = Path(root), Path(cache), split
         index_path = self.cache / (split + '.index.json')
         self.packed_index = json.loads(index_path.read_text()) if index_path.exists() else None
@@ -42,13 +42,15 @@ class Images(Dataset):
         aug = [T.RandomResizedCrop(size, scale=(0.85, 1.0), ratio=(0.9, 1.1)),
                T.RandomAffine(6, translate=(0.025, 0.025)),
                T.ColorJitter(brightness=0.12, contrast=0.12)] if train else [T.Resize((size, size))]
-        self.transform = T.Compose(aug + [T.ToTensor(), T.Normalize([0.5]*3, [0.25]*3)])
+        if normalization not in ['legacy','imagenet']:raise ValueError('Unknown normalization')
+        mean,std=([0.485,0.456,0.406],[0.229,0.224,0.225]) if normalization=='imagenet' else ([0.5]*3,[0.25]*3)
+        self.transform = T.Compose(aug + [T.ToTensor(), T.Normalize(mean,std)])
         if train and regularize:
             self.transform = T.Compose([
                 T.RandomResizedCrop(size, scale=(0.92,1.0),ratio=(0.95,1.05)),
                 T.RandomAffine(5,translate=(0.02,0.02),scale=(0.95,1.05)),
                 T.ColorJitter(brightness=0.2,contrast=0.2),
-                T.ToTensor(),T.Normalize([0.5]*3,[0.25]*3),
+                T.ToTensor(),T.Normalize(mean,std),
                 T.RandomErasing(p=0.2,scale=(0.01,0.04),ratio=(0.5,2.0),value=0)])
     def __len__(self):
         return len(self.groups) if self.study_sampling else len(self.df)
