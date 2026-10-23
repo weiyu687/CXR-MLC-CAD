@@ -1,0 +1,158 @@
+{
+  "audited_at": "2026-10-23",
+  "scope": "PDF retrieval evidence, not a claim of exhaustive reading; see RESEARCH_REVIEW.md for reading depth and adoption decisions.",
+  "papers": [
+    {
+      "name": "cxr_lt_2026",
+      "url": "https://arxiv.org/pdf/2604.15555",
+      "pages": 30,
+      "sha256": "5204c985815232843a95d5579af42577af5f39f8a3957a79ef695e94a56d046d",
+      "bytes": 1155912
+    },
+    {
+      "name": "projection_aware_2026",
+      "url": "https://arxiv.org/pdf/2604.02185",
+      "pages": 5,
+      "sha256": "99a72247844012133437dabe0ab4ef171fa8d9ebbce8b35652197216f3c83bb9",
+      "bytes": 261106
+    },
+    {
+      "name": "chexworld_2025",
+      "url": "https://arxiv.org/pdf/2504.13820",
+      "pages": 14,
+      "sha256": "2ea95bb840222bf7ebd0c3fbdcf143e02796916b7f5060452ce29bae16882828",
+      "bytes": 6537026
+    },
+    {
+      "name": "rad_dino_2024",
+      "url": "https://arxiv.org/pdf/2401.10815",
+      "pages": 31,
+      "sha256": "d8ed7ecfefd7628c9c7041192c44e77614f77832634a60e45095f8c75874d97d",
+      "bytes": 12509488
+    },
+    {
+      "name": "compositional_auc_2022",
+      "url": "https://openreview.net/pdf?id=gPvB4pdu_Z",
+      "error": "HTTP Error 403: Forbidden"
+    },
+    {
+      "name": "cxr_lt_2024_2025",
+      "url": "https://arxiv.org/pdf/2506.07984",
+      "pages": 29,
+      "sha256": "05c1cca7530b0fa3f5b91487baf11a2184475b5e05f5d3aefc1336a644c5610f",
+      "bytes": 986268
+    },
+    {
+      "name": "chexfusion_2023",
+      "url": "https://arxiv.org/pdf/2308.03968",
+      "pages": 9,
+      "sha256": "6e81e8138247cefa61a64442d005dccd6a3e9bd40f9096e432417afdb9aa3da5",
+      "bytes": 746940
+    },
+    {
+      "name": "chextransfer_2021",
+      "url": "https://arxiv.org/pdf/2101.06871",
+      "pages": 9,
+      "sha256": "2bf6780f73cf9a909b099da5dc659d27709dcd58e3b66eebb567ce81c23bd25b",
+      "bytes": 1425198
+    },
+    {
+      "name": "asl_2021",
+      "url": "https://arxiv.org/pdf/2009.14119",
+      "pages": 13,
+      "sha256": "730d9af30d43febe7ebd7c5ae5c23ed46d35e8c76f1a6b711249346dbcd80c73",
+      "bytes": 553499
+    },
+    {
+      "name": "ml_decoder_2022",
+      "url": "https://arxiv.org/pdf/2111.12933",
+      "pages": 14,
+      "sha256": "1ae676d2062c88e8459102da0c909493bc2d38522ccc1c94e4b61f133aba51e4",
+      "bytes": 790689
+    },
+    {
+      "name": "query2label_2021",
+      "url": "https://arxiv.org/pdf/2107.10834",
+      "pages": 16,
+      "sha256": "3c85766f6b8e5cafd981991668c86f7e3d12e595c237dbb3a93966693845024b",
+      "bytes": 4100944
+    },
+    {
+      "name": "db_loss_2020",
+      "url": "https://arxiv.org/pdf/2007.09654",
+      "pages": 20,
+      "sha256": "edbce5634377ba40149ec4cd2a601907d829dd3a04fe4c5a2a582577caef5836",
+      "bytes": 5563285
+    },
+    {
+      "name": "hill_splc_2022",
+      "url": "https://arxiv.org/pdf/2112.07368",
+      "pages": 13,
+      "sha256": "555e7eb811fac3ce7dea9f2140d139e7469ed3aafa27f14eabe2b585d59bf427",
+      "bytes": 2947851
+    },
+    {
+      "name": "partial_csl_2022",
+      "url": "https://arxiv.org/pdf/2110.10955",
+      "pages": 12,
+      "sha256": "0b8458921ed097dcaec7f09660822d15400b7fb64346c37ee42929ed1e637bd1",
+      "bytes": 835502
+    },
+    {
+      "name": "auc_max_2021",
+      "url": "https://openaccess.thecvf.com/content/ICCV2021/papers/Yuan_Large-Scale_Robust_Deep_AUC_Maximization_A_New_Surrogate_Loss_and_ICCV_2021_paper.pdf",
+      "pages": 10,
+      "sha256": "46e82898b841c824809cbac4c2c1b2ba26e578d9e06218a9287662f1d679e7bf",
+      "bytes": 901949
+    },
+    {
+      "name": "dinov2_2023",
+      "url": "https://arxiv.org/pdf/2304.07193",
+      "pages": 32,
+      "sha256": "3add205547f3ece5fb1ac7a91720aa9fabf02d9cde29a096643ff022449f3e91",
+      "bytes": 8049044
+    },
+    {
+      "name": "dinov3_2025",
+      "url": "https://arxiv.org/pdf/2508.10104",
+      "pages": 67,
+      "sha256": "c68dc50b1f73e1641a592f777984fc360759e84b7fe65ac4f6e1377927f20b2e",
+      "bytes": 15823906
+    },
+    {
+      "name": "convnext_2022",
+      "url": "https://arxiv.org/pdf/2201.03545",
+      "pages": 15,
+      "sha256": "1fde2340370d0eb8045bda97fc94da7adb2a7abe8e6ded1a473d22475b945e1a",
+      "bytes": 751927
+    },
+    {
+      "name": "convnext_v2_2023",
+      "url": "https://arxiv.org/pdf/2301.00808",
+      "pages": 15,
+      "sha256": "5159ce5ca776a93330cd5184fd2b395b9cf698d4762f8a0311785d6acfd9e3d5",
+      "bytes": 3975229
+    },
+    {
+      "name": "lp_ft_2022",
+      "url": "https://par.nsf.gov/servlets/purl/10472125",
+      "pages": 54,
+      "sha256": "d03721bb571e47c1071e4f6d6eb19eb1fb662772db902361af5dbf742b97271c",
+      "bytes": 872614
+    },
+    {
+      "name": "chexagent_2024",
+      "url": "https://arxiv.org/pdf/2401.12208",
+      "pages": 26,
+      "sha256": "15a62d69be045260389fcea3dcb1918f26fbe29e035c1c17d573d8349ecc72b0",
+      "bytes": 8808845
+    },
+    {
+      "name": "chex_2024",
+      "url": "https://arxiv.org/pdf/2404.15770",
+      "pages": 52,
+      "sha256": "19f35abfbb173050a3bc62f464247e6fa57f6d6f8f77af4e82062f0cb7e4e00e",
+      "bytes": 6146939
+    }
+  ]
+}

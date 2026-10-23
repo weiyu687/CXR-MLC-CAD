@@ -1,0 +1,39 @@
+{
+  "torch": "2.10.0+cu126",
+  "no_dataset_or_training": true,
+  "bce_mixup": {
+    "soft_target_loss": 1.2936928272247314,
+    "mixed_hard_loss": 1.2936928272247314,
+    "absolute_loss_difference": 0.0,
+    "max_gradient_difference": 1.862645149230957e-09
+  },
+  "asl_mixup": {
+    "soft_target_loss": 6.162439346313477,
+    "mixed_hard_loss": 7.873754501342773,
+    "absolute_loss_difference": 1.7113151550292969,
+    "max_gradient_difference": 0.07122156769037247
+  },
+  "asl_hard_target_parity": {
+    "loss_difference": 0.0,
+    "max_gradient_difference": 0.0
+  },
+  "chexfusion_layout_minimal_reproduction": {
+    "input_shape_BSD": [
+      2,
+      3,
+      8
+    ],
+    "default_sequence_first_other_study_effect": 1.484786033630371,
+    "batch_first_other_study_effect": 0.0,
+    "scope": "Reproduces the axis convention in published model/layers.py, not the full network or published experiments."
+  },
+  "auc_binary_mask_on_soft_targets": {
+    "soft_targets": [
+      0.3,
+      0.7
+    ],
+    "number_positive_masks": 0,
+    "number_negative_masks": 0,
+    "consequence": "Both masks are empty; v2 conditional means divide by zero."
+  }
+}

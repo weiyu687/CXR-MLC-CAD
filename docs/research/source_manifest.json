@@ -1,0 +1,314 @@
+{
+  "audited_at": "2026-10-23",
+  "scope": "Public source metadata only. Repository file content and paper PDFs are kept in ignored outputs/research_review. Source blobs identify the exact text consulted; head_at_audit records the contemporaneous repository commit.",
+  "files": [
+    {
+      "repo": "xinyu1205/robust-loss-mlml",
+      "path": "README.md",
+      "sha": "ba522fb9bccb9a6578fe9901a727ef8200cc4380",
+      "url": "https://github.com/xinyu1205/robust-loss-mlml/blob/master/README.md",
+      "head_at_audit": "dcfa4d54bcca43fba3632ec9d21d8bfabef1f6dd"
+    },
+    {
+      "repo": "Alibaba-MIIL/ML_Decoder",
+      "path": "src_files/ml_decoder/ml_decoder.py",
+      "sha": "691cb6ae4e8136f4e823c06dad872e8133d6653e",
+      "url": "https://github.com/Alibaba-MIIL/ML_Decoder/blob/main/src_files/ml_decoder/ml_decoder.py",
+      "head_at_audit": "8a9e984f671c9c30c98d2c45dfcaf4383381c254"
+    },
+    {
+      "repo": "stanfordmlgroup/MoCo-CXR",
+      "path": "README.md",
+      "sha": "d7cf47d0b7bacb566f4d178236132b317442a6e8",
+      "url": "https://github.com/stanfordmlgroup/MoCo-CXR/blob/main/README.md",
+      "head_at_audit": "d433acabe6518b332a1345a6a1fed49f0c23c253"
+    },
+    {
+      "repo": "Alibaba-MIIL/PartialLabelingCSL",
+      "path": "README.md",
+      "sha": "e08c51081e8a7b443a818562385308c5243dd3a4",
+      "url": "https://github.com/Alibaba-MIIL/PartialLabelingCSL/blob/main/README.md",
+      "head_at_audit": "534f3ce1997607ceaa2db8eb5d06986f490ed88b"
+    },
+    {
+      "repo": "wutong16/DistributionBalancedLoss",
+      "path": "mllt/models/losses/resample_loss.py",
+      "sha": "7ffc13adef14f8f1e081e50dc7b14c4d58611fe4",
+      "url": "https://github.com/wutong16/DistributionBalancedLoss/blob/master/mllt/models/losses/resample_loss.py",
+      "head_at_audit": "14460d0acda6a3e77a8a6a5999b9746243cb1535"
+    },
+    {
+      "repo": "Glourier/MICCAI2024-ZeroShotCXR",
+      "path": "README.md",
+      "sha": "f7bcdbffe3b19ecae2be9a531765a605131c053e",
+      "url": "https://github.com/Glourier/MICCAI2024-ZeroShotCXR/blob/main/README.md",
+      "head_at_audit": "f4def42d8c2f070b7042e388fcd6b9d64b4b520f"
+    },
+    {
+      "repo": "SlongLiu/query2labels",
+      "path": "lib/models/query2label.py",
+      "sha": "f3ab451a7c1ea7573f8f283028a20f23dacce894",
+      "url": "https://github.com/SlongLiu/query2labels/blob/main/lib/models/query2label.py",
+      "head_at_audit": "55eb05064f4badbe03423b79e5c9d143da2dff2e"
+    },
+    {
+      "repo": "facebookresearch/dinov3",
+      "path": "LICENSE.md",
+      "sha": "f531b1e6b5ab2318957bbf8ad1bda9f800a23e17",
+      "url": "https://github.com/facebookresearch/dinov3/blob/main/LICENSE.md",
+      "head_at_audit": "6876159a11b4df116f30f667f8c9888617df0751"
+    },
+    {
+      "repo": "mlmed/torchxrayvision",
+      "path": "scripts/train_utils.py",
+      "sha": "b5b963fa13416b8d9c5bd9eda4ddc52ca9e5d308",
+      "url": "https://github.com/mlmed/torchxrayvision/blob/main/scripts/train_utils.py",
+      "head_at_audit": "17726dd8f5e756eec3e5ae958281a289b05b1dae"
+    },
+    {
+      "repo": "facebookresearch/ConvNeXt",
+      "path": "README.md",
+      "sha": "33fe9858738918c1019c767487f8dcdf2bdac713",
+      "url": "https://github.com/facebookresearch/ConvNeXt/blob/main/README.md",
+      "head_at_audit": "048efcea897d999aed302f2639b6270aedf8d4c8"
+    },
+    {
+      "repo": "dongkyunk/CheXFusion",
+      "path": "config.yaml",
+      "sha": "a2b484cc4fa59e4d17e652273c7a869b78c771f7",
+      "url": "https://github.com/dongkyunk/CheXFusion/blob/main/config.yaml",
+      "head_at_audit": "6bbf469d346bff9c2aeb8b9299b5cd8882cfe66f"
+    },
+    {
+      "repo": "dongkyunk/CheXFusion",
+      "path": "model/cxr_model.py",
+      "sha": "995466646a161d994d85b5589fe123ff06c83cae",
+      "url": "https://github.com/dongkyunk/CheXFusion/blob/main/model/cxr_model.py",
+      "head_at_audit": "6bbf469d346bff9c2aeb8b9299b5cd8882cfe66f"
+    },
+    {
+      "repo": "dongkyunk/CheXFusion",
+      "path": "model/layers.py",
+      "sha": "f7e07781aaba96091f4199dd4310bfb393ab1b71",
+      "url": "https://github.com/dongkyunk/CheXFusion/blob/main/model/layers.py",
+      "head_at_audit": "6bbf469d346bff9c2aeb8b9299b5cd8882cfe66f"
+    },
+    {
+      "repo": "dongkyunk/CheXFusion",
+      "path": "model/loss.py",
+      "sha": "3b3f1de309950127cb93e74f1372d0148239ed01",
+      "url": "https://github.com/dongkyunk/CheXFusion/blob/main/model/loss.py",
+      "head_at_audit": "6bbf469d346bff9c2aeb8b9299b5cd8882cfe66f"
+    },
+    {
+      "repo": "dongkyunk/CheXFusion",
+      "path": "dataset/cxr_dataset.py",
+      "sha": "97b47e36fe12bda0b9605b328c9747a7a7a8fd01",
+      "url": "https://github.com/dongkyunk/CheXFusion/blob/main/dataset/cxr_dataset.py",
+      "head_at_audit": "6bbf469d346bff9c2aeb8b9299b5cd8882cfe66f"
+    },
+    {
+      "repo": "Alibaba-MIIL/ASL",
+      "path": "src/loss_functions/losses.py",
+      "sha": "72117224267978bd136908432e3a244d74baecaf",
+      "url": "https://github.com/Alibaba-MIIL/ASL/blob/main/src/loss_functions/losses.py",
+      "head_at_audit": "8c9e0bd8d5d450cf19093363fc08aa7244ad4408"
+    },
+    {
+      "repo": "Alibaba-MIIL/ASL",
+      "path": "train.py",
+      "sha": "a3994ab02177e49ab3a6d3c1a246f92d75211b14",
+      "url": "https://github.com/Alibaba-MIIL/ASL/blob/main/train.py",
+      "head_at_audit": "8c9e0bd8d5d450cf19093363fc08aa7244ad4408"
+    },
+    {
+      "repo": "Alibaba-MIIL/ASL",
+      "path": "README.md",
+      "sha": "a368d5c80a32d4bf50a45f5a5a05a9ea0ddcbdc1",
+      "url": "https://github.com/Alibaba-MIIL/ASL/blob/main/README.md",
+      "head_at_audit": "8c9e0bd8d5d450cf19093363fc08aa7244ad4408"
+    },
+    {
+      "repo": "Optimization-AI/LibAUC",
+      "path": "examples/scripts/07_optimizing_multi_label_auroc_loss_with_densenet121_on_chexpert.py",
+      "sha": "332382211b9bf483222b231fc907c31fe7b25d6e",
+      "url": "https://github.com/Optimization-AI/LibAUC/blob/main/examples/scripts/07_optimizing_multi_label_auroc_loss_with_densenet121_on_chexpert.py",
+      "head_at_audit": "3c02aa9877e0091114a00f94a8c6367698eb5637"
+    },
+    {
+      "repo": "facebookresearch/dinov2",
+      "path": "MODEL_CARD.md",
+      "sha": "21b9bf295c8cab14e782e1a7a1d051be9e501088",
+      "url": "https://github.com/facebookresearch/dinov2/blob/main/MODEL_CARD.md",
+      "head_at_audit": "7764ea0f912e53c92e82eb78a2a1631e92725fc8"
+    },
+    {
+      "repo": "facebookresearch/ConvNeXt-V2",
+      "path": "LICENSE",
+      "sha": "7fbb1aef52ef0a57ee77b06c58ce85026981cd2e",
+      "url": "https://github.com/facebookresearch/ConvNeXt-V2/blob/main/LICENSE",
+      "head_at_audit": "2553895753323c6fe0b2bf390683f5ea358a42b9"
+    },
+    {
+      "repo": "facebookresearch/ConvNeXt-V2",
+      "path": "README.md",
+      "sha": "147b890e4527a0da839f33b1e9fcaf0fc4dc705f",
+      "url": "https://github.com/facebookresearch/ConvNeXt-V2/blob/main/README.md",
+      "head_at_audit": "2553895753323c6fe0b2bf390683f5ea358a42b9"
+    },
+    {
+      "repo": "xinyu1205/robust-loss-mlml",
+      "path": "src/loss_functions/losses.py",
+      "sha": "72168ef0768332447c72de30707f0adda1d3ae80",
+      "url": "https://github.com/xinyu1205/robust-loss-mlml/blob/master/src/loss_functions/losses.py",
+      "head_at_audit": "dcfa4d54bcca43fba3632ec9d21d8bfabef1f6dd"
+    },
+    {
+      "repo": "xinyu1205/robust-loss-mlml",
+      "path": "LICENSE",
+      "sha": "1baa094ce9f6f9b5fb8e4313186b4cda9cf18f28",
+      "url": "https://github.com/xinyu1205/robust-loss-mlml/blob/master/LICENSE",
+      "head_at_audit": "dcfa4d54bcca43fba3632ec9d21d8bfabef1f6dd"
+    },
+    {
+      "repo": "facebookresearch/dinov2",
+      "path": "dinov2/hub/backbones.py",
+      "sha": "af5fd95d38eb33f73a85b92a94a715773a4e70bc",
+      "url": "https://github.com/facebookresearch/dinov2/blob/main/dinov2/hub/backbones.py",
+      "head_at_audit": "7764ea0f912e53c92e82eb78a2a1631e92725fc8"
+    },
+    {
+      "repo": "Optimization-AI/LibAUC",
+      "path": "libauc/optimizers/pesg.py",
+      "sha": "6dd510b5c6a22b0d3b2b457813731da68e98aae9",
+      "url": "https://github.com/Optimization-AI/LibAUC/blob/main/libauc/optimizers/pesg.py",
+      "head_at_audit": "3c02aa9877e0091114a00f94a8c6367698eb5637"
+    },
+    {
+      "repo": "Optimization-AI/LibAUC",
+      "path": "libauc/sampler/sampler.py",
+      "sha": "ff2d9912c33433d14c04a5421fd79516cd23e005",
+      "url": "https://github.com/Optimization-AI/LibAUC/blob/main/libauc/sampler/sampler.py",
+      "head_at_audit": "3c02aa9877e0091114a00f94a8c6367698eb5637"
+    },
+    {
+      "repo": "Stanford-AIMI/CheXagent",
+      "path": "README.md",
+      "sha": "84b08c090f1447c3c54ec9f7ef45ec089e5c7461",
+      "url": "https://github.com/Stanford-AIMI/CheXagent/blob/main/README.md",
+      "head_at_audit": "e4f31e6e517f442620fe816f90c846cbcb28b746"
+    },
+    {
+      "repo": "Glourier/MICCAI2024-ZeroShotCXR",
+      "path": "main_task1_mv.py",
+      "sha": "2306b95b0ef9f07caccaa4dee977063cd28d2d46",
+      "url": "https://github.com/Glourier/MICCAI2024-ZeroShotCXR/blob/main/main_task1_mv.py",
+      "head_at_audit": "f4def42d8c2f070b7042e388fcd6b9d64b4b520f"
+    },
+    {
+      "repo": "AnanyaKumar/transfer_learning",
+      "path": "README.md",
+      "sha": "d898b417e1d61ebdc83f62a01089266124f3dc16",
+      "url": "https://github.com/AnanyaKumar/transfer_learning/blob/main/README.md",
+      "head_at_audit": "13c3e2bbb8a34bbb781e28cee96ddf20bed5f76f"
+    },
+    {
+      "repo": "Optimization-AI/LibAUC",
+      "path": "libauc/losses/auc.py",
+      "sha": "e861592996c288ab8a134f50b345c7741960346f",
+      "url": "https://github.com/Optimization-AI/LibAUC/blob/main/libauc/losses/auc.py",
+      "head_at_audit": "3c02aa9877e0091114a00f94a8c6367698eb5637"
+    },
+    {
+      "repo": "LeapLabTHU/CheXWorld",
+      "path": "README.md",
+      "sha": "7bf2528211b42de7ae5ed47c4ebd534e4d72b109",
+      "url": "https://github.com/LeapLabTHU/CheXWorld/blob/main/README.md",
+      "head_at_audit": "090102758801dc097f53c49d135b835570c8d173"
+    },
+    {
+      "repo": "LeapLabTHU/CheXWorld",
+      "path": "FINETUNE.md",
+      "sha": "bc1d2a3dd2e0dfc3edc62bafaabc8334f54fa258",
+      "url": "https://github.com/LeapLabTHU/CheXWorld/blob/main/FINETUNE.md",
+      "head_at_audit": "090102758801dc097f53c49d135b835570c8d173"
+    },
+    {
+      "repo": "Alibaba-MIIL/PartialLabelingCSL",
+      "path": "src/loss_functions/partial_asymmetric_loss.py",
+      "sha": "61de2d5dd560b6942e1af55b15ad12a00db7bcea",
+      "url": "https://github.com/Alibaba-MIIL/PartialLabelingCSL/blob/main/src/loss_functions/partial_asymmetric_loss.py",
+      "head_at_audit": "534f3ce1997607ceaa2db8eb5d06986f490ed88b"
+    },
+    {
+      "repo": "huggingface/pytorch-image-models",
+      "path": "timm/utils/model_ema.py",
+      "sha": "ab760246f0c483bd8eef848bcc824cfc6dca782b",
+      "url": "https://github.com/huggingface/pytorch-image-models/blob/main/timm/utils/model_ema.py",
+      "head_at_audit": "af97f99efef62bd9bd7eaa908fffe5b7a2d98e2c"
+    },
+    {
+      "repo": "AnanyaKumar/transfer_learning",
+      "path": "unlabeled_extrapolation/baseline_train.py",
+      "sha": "20a1186de702b6e3116fccfbd51fa564c2a82bdf",
+      "url": "https://github.com/AnanyaKumar/transfer_learning/blob/main/unlabeled_extrapolation/baseline_train.py",
+      "head_at_audit": "13c3e2bbb8a34bbb781e28cee96ddf20bed5f76f"
+    },
+    {
+      "repo": "philip-mueller/chex",
+      "path": "README.md",
+      "sha": "a073750d190b257a1feb513cfeb8d413755a076a",
+      "url": "https://github.com/philip-mueller/chex/blob/main/README.md",
+      "head_at_audit": "c3f5d7864b399e4779106fb1f21872d50fe95401"
+    },
+    {
+      "repo": "pytorch/vision",
+      "path": "references/classification/utils.py",
+      "sha": "7d9f0136ae8e9712b5378fe8726a464fcae090f3",
+      "url": "https://github.com/pytorch/vision/blob/main/references/classification/utils.py",
+      "head_at_audit": "c725e823011284b77082320577d288f82b36683c"
+    },
+    {
+      "repo": "LeapLabTHU/CheXWorld",
+      "path": "models/attentive_pooler.py",
+      "sha": "6f6b599cee88e69ac83b0ef083bf51e07f929fe6",
+      "url": "https://github.com/LeapLabTHU/CheXWorld/blob/main/models/attentive_pooler.py",
+      "head_at_audit": "090102758801dc097f53c49d135b835570c8d173"
+    },
+    {
+      "repo": "LeapLabTHU/CheXWorld",
+      "path": "data_utils/xray_transform.py",
+      "sha": "bc98dd38bca8e9635495a1f5c218c4ead5c745a9",
+      "url": "https://github.com/LeapLabTHU/CheXWorld/blob/main/data_utils/xray_transform.py",
+      "head_at_audit": "090102758801dc097f53c49d135b835570c8d173"
+    },
+    {
+      "repo": "Glourier/MICCAI2024-ZeroShotCXR",
+      "path": "arch/vit_mv.py",
+      "sha": "a055facd657c5a5303d42475275241c16341c682",
+      "url": "https://github.com/Glourier/MICCAI2024-ZeroShotCXR/blob/main/arch/vit_mv.py",
+      "head_at_audit": "f4def42d8c2f070b7042e388fcd6b9d64b4b520f"
+    },
+    {
+      "repo": "facebookresearch/ConvNeXt",
+      "path": "models/convnext.py",
+      "sha": "74c1e9407bb4096a3b27127515573e32865b40f7",
+      "url": "https://github.com/facebookresearch/ConvNeXt/blob/main/models/convnext.py",
+      "head_at_audit": "048efcea897d999aed302f2639b6270aedf8d4c8"
+    },
+    {
+      "repo": "pytorch/vision",
+      "path": "references/classification/transforms.py",
+      "sha": "96236608eec05f2237b1d72e8c1ce1d9c2127faf",
+      "url": "https://github.com/pytorch/vision/blob/main/references/classification/transforms.py",
+      "head_at_audit": "c725e823011284b77082320577d288f82b36683c"
+    },
+    {
+      "repo": "facebookresearch/dinov2",
+      "path": "dinov2/eval/linear.py",
+      "sha": "1bd4c5de5a041be8a188f007257d1e91b6d6921e",
+      "url": "https://github.com/facebookresearch/dinov2/blob/main/dinov2/eval/linear.py",
+      "head_at_audit": "7764ea0f912e53c92e82eb78a2a1631e92725fc8"
+    }
+  ]
+}

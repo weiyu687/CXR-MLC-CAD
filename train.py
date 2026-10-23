@@ -15,6 +15,7 @@ from src.data import Images, aggregate
 from src.model import build_model, AsymmetricLoss
 from src.metrics import evaluate
 from src.inference import forward_probabilities
+from src.training import configure_train_stage, mixed_target_loss
 
 @torch.inference_mode()
 def predict(model, loader, device, tta=False):
@@ -46,9 +47,14 @@ def main():
     ap.add_argument('--frontal-training',action='store_true')
     ap.add_argument('--regularize',action='store_true')
     ap.add_argument('--mixup',type=float,default=0.)
+    ap.add_argument('--mixup-objective',choices=['hard_loss','soft_target'],default='hard_loss',
+                    help='Mix hard-target losses; soft_target reproduces the original ASL/Mixup recipe')
+    ap.add_argument('--freeze-backbone-epochs',type=int,default=0,
+                    help='Train only the classifier first, keeping backbone BatchNorm/dropout frozen')
     ap.add_argument('--weight-decay',type=float,default=0.02)
     ap.add_argument('--positive-weight',action='store_true',help='Square-root inverse positive frequency, capped at 5')
     ap.add_argument('--patient-holdout',type=float,default=0.,help='Official training patients reserved for an independent selection split')
+    ap.add_argument('--split-seed',type=int,default=2030,help='Patient split seed, independent of model initialization')
     ap.add_argument('--head-lr-mult',type=float,help='Default 5 for a newly initialized ImageNet classifier, otherwise 1')
     ap.add_argument('--patience',type=int,default=0,help='Stop after this many epochs without an improvement in the selection split; 0 disables')
     ap.add_argument('--horizontal-flip',action=argparse.BooleanOptionalAction,default=True,help='Training only; labels have no side-specific classes')
@@ -69,9 +75,13 @@ def main():
             if resume_config['model']!=args.model:raise ValueError('Resume model differs from the stored architecture')
             args.normalization=resume_config.get('normalization','legacy')
             if args.head_lr_mult is None:args.head_lr_mult=resume_config.get('head_lr_mult',1.)
+            args.mixup_objective=resume_config.get('mixup_objective','soft_target')
+            args.freeze_backbone_epochs=resume_config.get('freeze_backbone_epochs',0)
+            args.split_seed=resume_config.get('split_seed',resume_config.get('seed',args.seed))
         del resume_metadata
     if args.head_lr_mult is None:args.head_lr_mult=5. if args.pretrained else 1.
     if not 0<args.head_lr_mult<=100:raise ValueError('Invalid classifier learning-rate multiplier')
+    if not 0<=args.freeze_backbone_epochs<args.epochs:raise ValueError('Invalid classifier warmup duration')
     def git_output(arguments):
         try:
             result=subprocess.run(['git',*arguments],capture_output=True,text=True,timeout=5)
@@ -100,7 +110,7 @@ def main():
         if args.init or args.resume:raise ValueError('Patient holdout must train from scratch to avoid prior checkpoint leakage')
         if not 0<args.patient_holdout<0.5:raise ValueError('Invalid holdout fraction')
         patients=np.sort(train.df.Subject_id.unique())
-        rng=np.random.default_rng(args.seed)
+        rng=np.random.default_rng(args.split_seed)
         held=set(rng.choice(patients,int(len(patients)*args.patient_holdout),replace=False))
         holdout=Images(args.root,args.cache,'train',args.size,normalization=args.normalization)
         holdout.df=holdout.df[holdout.df.Subject_id.isin(held)].reset_index(drop=True)
@@ -129,6 +139,7 @@ def main():
             model.load_state_dict(state)
     ema = copy.deepcopy(model).eval()
     for p in ema.parameters(): p.requires_grad_(False)
+    original_trainable={name for name,param in model.named_parameters() if param.requires_grad}
     parameters=model.parameters()
     if args.head_lr_mult!=1:
         head=[p for n,p in model.named_parameters() if n.startswith(('fc.','classifier.','head.'))]
@@ -163,21 +174,25 @@ def main():
         if 'cuda_rng' in ck and device.type=='cuda': torch.cuda.set_rng_state_all(ck['cuda_rng'])
     print(json.dumps({'device':str(device),'model':args.model,'train_studies':len(train),'valid_images':len(valid),'parameters':sum(p.numel() for p in model.parameters())}),flush=True)
     for epoch in range(start,args.epochs):
-        t0=time.time(); model.train(); total=0
+        t0=time.time(); total=0
+        head_only=epoch<args.freeze_backbone_epochs
+        configure_train_stage(model,head_only,original_trainable)
+        print('TRAINING_STAGE '+('classifier_warmup' if head_only else 'full_finetune'),flush=True)
         for step,(x,y,_) in enumerate(tl):
             progress=(epoch+step/len(tl))
             lr=args.lr*min(1.,(progress+0.1)/2)*0.5*(1+math.cos(math.pi*progress/args.epochs))
             for group in optimizer.param_groups: group['lr']=lr*group.get('lr_scale',1.)
             x=x.to(device,non_blocking=True).to(memory_format=torch.channels_last); y=y.to(device,non_blocking=True)
+            paired_targets=None;lam=None
             if args.mixup>0 and random.random()<0.5:
                 lam=float(np.random.beta(args.mixup,args.mixup))
                 order=torch.randperm(len(x),device=device)
                 x=lam*x+(1-lam)*x[order]
-                y=lam*y+(1-lam)*y[order]
+                paired_targets=y[order]
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type,enabled=device.type=='cuda'):
                 logits=model(x)
-                loss=criterion(logits.float(),y)
+                loss=mixed_target_loss(criterion,logits.float(),y,paired_targets,lam,args.mixup_objective)
             scaler.scale(loss).backward(); scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(),5)
             scaler.step(optimizer); scaler.update()
