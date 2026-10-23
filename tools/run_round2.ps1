@@ -5,6 +5,9 @@ $cache='C:/Users/Administrator/.cache/cxr-mlc-cad/448'
 if (Test-Path outputs/densenet121_front_mix_s2026) { throw 'Preserve existing experiment' }
 & $Python -u train.py --model densenet121 --size 320 --batch-size 32 --epochs 45 --lr 0.0008 --weight-decay 0.0001 --loss bce --positive-weight --frontal-training --regularize --mixup 0.2 --patient-holdout 0.12 --selection-aggregation frontal --seed 2026 --workers 2 --cache $cache --out outputs/densenet121_front_mix_s2026
 if ($LASTEXITCODE -ne 0) { throw 'DenseNet training failed' }
+if (Test-Path outputs/densenet121_front_full_s2028) { throw 'Preserve existing experiment' }
+& $Python -u train.py --model densenet121 --init outputs/densenet121_front_mix_s2026/best.pt --size 320 --batch-size 32 --epochs 16 --lr 0.0001 --weight-decay 0.0001 --loss bce --positive-weight --frontal-training --regularize --mixup 0.2 --selection-aggregation frontal --seed 2028 --workers 2 --cache $cache --out outputs/densenet121_front_full_s2028
+if ($LASTEXITCODE -ne 0) { throw 'DenseNet full training refinement failed' }
 if (Test-Path outputs/efficientnetv2_front_mix_s2027) { throw 'Preserve existing experiment' }
 & $Python -u train.py --model tf_efficientnetv2_b0 --init outputs/efficientnetv2_b0_s123/best.pt --size 384 --batch-size 32 --epochs 18 --lr 0.00012 --weight-decay 0.0001 --loss bce --positive-weight --frontal-training --regularize --mixup 0.2 --selection-aggregation frontal --seed 2027 --workers 2 --cache $cache --out outputs/efficientnetv2_front_mix_s2027
 if ($LASTEXITCODE -ne 0) { throw 'EfficientNet refinement failed' }
