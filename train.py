@@ -58,6 +58,17 @@ def main():
     if args.init:
         initial_config=torch.load(args.init,map_location='cpu',weights_only=False)['config']
         args.normalization=initial_config.get('normalization','legacy')
+    if args.resume:
+        resume_metadata=torch.load(args.resume,map_location='cpu',weights_only=False)
+        resume_config=resume_metadata.get('config')
+        if resume_config is None:
+            config_file=Path(args.resume).parent/'config.json'
+            resume_config=json.loads(config_file.read_text(encoding='utf-8')) if config_file.exists() else {}
+        if resume_config:
+            if resume_config['model']!=args.model:raise ValueError('Resume model differs from the stored architecture')
+            args.normalization=resume_config.get('normalization','legacy')
+            if args.head_lr_mult is None:args.head_lr_mult=resume_config.get('head_lr_mult',1.)
+        del resume_metadata
     if args.head_lr_mult is None:args.head_lr_mult=5. if args.pretrained else 1.
     if not 0<args.head_lr_mult<=100:raise ValueError('Invalid classifier learning-rate multiplier')
     def git_output(arguments):
@@ -135,6 +146,13 @@ def main():
     best, start,stale_epochs = -1., 0,0
     if args.resume:
         ck = torch.load(args.resume,map_location='cpu',weights_only=False)
+        previous_provenance=ck.get('provenance')
+        if previous_provenance is None:
+            provenance_file=Path(args.resume).parent/'provenance.json'
+            previous_provenance=json.loads(provenance_file.read_text(encoding='utf-8')) if provenance_file.exists() else {}
+        if previous_provenance.get('pretraining'):
+            provenance['pretraining']=previous_provenance['pretraining']
+            (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
         model.load_state_dict(ck['state_dict']); ema.load_state_dict(ck['ema'])
         optimizer.load_state_dict(ck['optimizer']); scaler.load_state_dict(ck['scaler'])
         start,best = ck['epoch']+1,ck['best']
