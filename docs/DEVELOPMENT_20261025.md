@@ -8,8 +8,8 @@
 
 | 输出目录（本地，不公开数据） | 损失 | 分类头预热 | 状态 |
 |---|---|---:|---|
-| `outputs/research_ablation_s2036/bce_baseline` | 平方根正类加权 BCE | 0 轮 | 已启动 |
-| `outputs/research_ablation_s2036/bce_head_warmup` | 同上 | 2 轮 | 已排队 |
+| `outputs/research_ablation_s2036/bce_baseline` | 平方根正类加权 BCE | 0 轮 | 已完成 10 轮，按 patience=4 早停 |
+| `outputs/research_ablation_s2036/bce_head_warmup` | 同上 | 2 轮 | 已启动 |
 | `outputs/research_ablation_s2036/asl_head_warmup` | ASL，负类 γ=4、正类 γ=0、clip=.05 | 2 轮 | 已排队 |
 
 BCE 的两组只改变冻结预热开关；ASL 与 BCE 是两种损失配方，不能将正类加权与损失的差异拆成单一因素的因果结论。两轮预热是待验证选择。
@@ -21,7 +21,9 @@ BCE 的两组只改变冻结预热开关；ASL 与 BCE 是两种损失配方，�
 | 1 | 0.740799 | 0.737360 | 482.7 秒 |
 | 2 | 0.787367 | 0.773550 | 355.1 秒 |
 
-尚未据此选出三组优胜者，没有新榜单成绩或新 CSV。已在 PyTorch 2.10 对真实配置执行前置检查：新划分与既有 ResNet50 留出 **1326 位患者完全相同**，valid/test 的 SSD 元数据摘要与官方原始 CSV 相同。
+基线已完成后，另用 checkpoint/配置/完整历史核验确认：第 6 轮患者留出 AUC **0.809049** 为最佳，其对应官方 valid 为 **0.792493**；单独保存的官方 valid 最佳为第 5 轮 **0.796983**（训练环境 2.8 记录）。之后连续 4 轮患者留出未提升，第 10 轮正常早停。原观察程序已正常退出，没有覆盖官方验证第 5 轮归档。第二组自动进入分类头预热。
+
+尚未选出三组最终优胜者，没有新榜单成绩或新 CSV。已在 PyTorch 2.10 对真实配置执行前置检查：新划分与既有 ResNet50 留出 **1326 位患者完全相同**，valid/test 的 SSD 元数据摘要与官方原始 CSV 相同。
 
 ## 新增实现
 
