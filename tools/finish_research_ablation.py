@@ -20,6 +20,44 @@ def read(path):
     return json.loads(Path(path).read_text(encoding='utf-8'))
 
 
+def load_extra_candidates(path, root):
+    """Load an explicitly configured registry of validated fixed checkpoints."""
+    raw=Path(path).read_bytes()
+    payload=json.loads(raw.decode('utf-8'))
+    if payload.get('schema_version')!=1 or not isinstance(payload.get('candidates'),list):
+        raise ValueError('Invalid supplemental candidate registry')
+    import numpy as np
+    expected_csv=hashlib.sha256((Path(root)/'valid.csv').read_bytes()).hexdigest()
+    runs=[]
+    for entry in payload['candidates']:
+        run=Path(entry['run']).resolve();checkpoint=run/'best.pt'
+        if not checkpoint.is_file() or checkpoint.stat().st_size>500_000_000:
+            raise ValueError('Invalid supplemental checkpoint: '+str(checkpoint))
+        digest=hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+        report_path=Path(entry['validation_report'])
+        report=read(report_path)
+        if digest!=entry['checkpoint_sha256'] or report['checkpoint_sha256']!=[digest]:
+            raise ValueError('Supplemental checkpoint/report hash mismatch')
+        settings=report['arguments'];runtime=report['runtime']
+        if not report['validation_recomputed'] or not settings.get('validation_only') or not settings.get('export_images'):
+            raise ValueError('Supplemental candidate lacks a validation-only export')
+        if settings['batch_size']!=1 or runtime.get('device')!='cuda' or runtime['torch'].split('+')[0]!='2.10.0' or not runtime['python'].startswith('3.12.'):
+            raise ValueError('Supplemental candidate uses a different target runtime/batch size')
+        with np.load(report_path.with_name('predictions.npz')) as saved:
+            metadata=json.loads(str(saved['image_prediction_metadata']))
+        if (metadata['checkpoint_sha256']!=digest or metadata['validation_csv_sha256']!=expected_csv
+                or metadata.get('runtime')!=runtime or metadata.get('batch_size')!=1
+                or metadata.get('tta')!=settings['tta'] or not metadata.get('deterministic_inference')):
+            raise ValueError('Supplemental prediction/model/dataset binding differs')
+        score=report['validation']['macro_auc'];declared=entry['validation_macro_auc']
+        if not np.isfinite([score,declared]).all() or not 0<=score<=1 or abs(score-declared)>1e-12:
+            raise ValueError('Supplemental validation score differs from its report')
+        runs.append(str(run))
+    if len(set(runs))!=len(runs):raise ValueError('Duplicate supplemental candidate')
+    evidence={'path':str(Path(path).resolve()),'sha256':hashlib.sha256(raw).hexdigest(),'candidates':payload['candidates']}
+    return runs,evidence,raw
+
+
 def completed_training(run):
     """Reject a stopped or partially written training run, even if best.pt exists."""
     run = Path(run)
@@ -90,6 +128,7 @@ def main():
     parser.add_argument('--reference', default='outputs/resnet50_imagenet_hold_s2030')
     parser.add_argument('--reference-full', default='outputs/resnet50_imagenet_full_s2031')
     parser.add_argument('--extra-runs',nargs='*',default=[],help='Explicit additional validation-screened fixed candidates')
+    parser.add_argument('--extra-runs-manifest',help='Explicit validated-candidate registry, reloaded and frozen before final selection')
     parser.add_argument('--target-python', required=True, help='Verified Python 3.12 / PyTorch 2.10 interpreter')
     parser.add_argument('--root', default='raw_data/cxr_first')
     parser.add_argument('--cache', required=True)
@@ -121,6 +160,7 @@ def main():
         raise ValueError('Duplicate comparison run')
     for run in args.extra_runs:
         if not (Path(run)/'best.pt').is_file():raise FileNotFoundError(Path(run)/'best.pt')
+    if args.extra_runs_manifest:load_extra_candidates(args.extra_runs_manifest,args.root)
     work.mkdir(parents=True)
     controller_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
 
@@ -194,9 +234,16 @@ def main():
                  '--lr','0.00003','--head-lr-mult','1','--seed','2040','--out',efficientnet_448],
                 work/'efficientnet_448.log')
         efficient_448_record=completed_training(efficientnet_448)
+        extra_runs=list(args.extra_runs);extra_registry=None
+        if args.extra_runs_manifest:
+            registered,extra_registry,raw=load_extra_candidates(args.extra_runs_manifest,args.root)
+            extra_runs.extend(registered)
+            (work/'frozen_extra_candidates.json').write_bytes(raw)
+        extra_runs=list(dict.fromkeys(str(Path(path).resolve()) for path in extra_runs))
+        status('FINAL_CANDIDATES_FROZEN',extra_runs=extra_runs,extra_registry=extra_registry)
         execute(['tools/finalize.py', '--runs', args.reference_full, refinement,
                  efficientnet, efficientnet_448,
-                 *[r['official_validation_candidate'] for r in records], *args.extra_runs,
+                 *[r['official_validation_candidate'] for r in records], *extra_runs,
                  '--max-members','3','--root', args.root,
                  '--cache', args.cache, '--ssd-root', args.ssd_root, '--timing-root', args.timing_root,
                  '--timing-split', 'valid', '--study-timing', '--batch-size', '1',
@@ -228,7 +275,7 @@ def main():
             raise RuntimeError('Frozen final cost/reproduction check failed; preserve evidence without test-based model reselection')
         summary = {'bundle': str(bundle), 'recipe_choice': str(work / 'recipe_choice.json'),
                    'refinement': refined, 'efficientnet':efficient_record,'efficientnet_448':efficient_448_record,
-                   'extra_validation_candidates':args.extra_runs,
+                   'extra_validation_candidates':extra_runs,'extra_registry':extra_registry,
                    'finalization': read(work / 'final_selection' / 'complete.json'),
                    'cost': cost, 'official_website_submission_performed': False,
                    'overall_deliverable_complete': False,
