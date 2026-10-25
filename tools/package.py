@@ -32,7 +32,8 @@ def main():
         target=out/'models'/f'model_{i+1}.pt';shutil.copy2(f,target)
         total+=target.stat().st_size;paths.append('models/'+target.name)
         ck=torch.load(target,map_location='cpu',weights_only=False)
-        checkpoint_info.append({'path':paths[-1],'training_configuration':ck['config'],
+        checkpoint_info.append({'path':paths[-1],'training_configuration':ck.get('training_configuration',ck['config']),
+                                'inference_configuration':ck['config'],
                                 'epoch':ck.get('epoch'),'training_selection_aggregation':ck.get('selection_aggregation','mean'),
                                 'training_selection_metrics':ck.get('metrics'),'holdout_selection_metrics':ck.get('holdout_metrics'),
                                 'provenance':ck.get('provenance'),'construction':ck.get('construction')})
@@ -90,7 +91,7 @@ def main():
 
 将占位路径替换为官方数据目录与缩放缓存目录。没有缓存时可以直接读取原图，但更慢。此命令只需 test.csv 与测试图像，使用已冻结的验证集阈值与推理设置，不需要验证集标签。
 
-`labels.json` 记录类别映射，`checkpoint_info.json` 记录权重训练配置、选中轮次和来源信息，`manifest.json` 记录文件摘要。旧基线未记录的来源字段为 null，不据此声称已验证对应环境。
+`labels.json` 记录类别映射，`checkpoint_info.json` 分别记录来源训练配置、实际推理配置、选中轮次和来源信息，`manifest.json` 记录文件摘要。固定输入大小的对照没有重新训练，其来源训练大小保留在训练配置与构造记录中。旧基线未记录的来源字段为 null，不据此声称已验证对应环境。
 
 实际生成时的运行环境见 report.json 的 runtime 字段。若包含 latency.json / selection.json，它们分别记录同一模型与环境的本机样本测时及验证集选择依据；本机样本通过不等同于 T4 或整个测试集最坏延迟达标。
 
