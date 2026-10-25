@@ -95,6 +95,7 @@ def main():
             'preprocessing':'Each member reads and preprocesses the original independently, matching sequential ensemble inference',
             'excludes':'Model startup, study-level aggregation and dataset CSV export; first 10 image predictions are warmup'}
     if predictor:report.update(aggregation=args.aggregation,conservative_full_study=True,
+        preprocessing='Original reads and canonical decode shared only within the current study call; matching size/normalization tensors reused between fixed members; no cross-call cache',
         includes='Specified file read, complete fixed study image reads, preprocessing, transfer, forward, sigmoid, CPU output, study/model aggregation, quantization, thresholds and flushed CSV writes',
         excludes='Model loading and 5 separate warmup images; 100 inputs measured serially over 3 rounds when --samples 100')
     Path(args.out).write_text(json.dumps(report,indent=2),encoding='utf-8');print(json.dumps(report,indent=2))

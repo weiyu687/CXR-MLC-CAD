@@ -1,10 +1,13 @@
 """Conservative serial full-study prediction shared by timing entry points."""
 from pathlib import Path
 import hashlib
+import io
 import numpy as np
+from PIL import Image
 from .data import Images,aggregate
 from .inference import load_deployed_model,forward_probabilities
 from .metrics import submission_probabilities
+from .preprocessing import decode_original_like_cache
 
 class StudyPredictor:
     def __init__(self,checkpoints,root,device,aggregation='frontal',tta=False,split='test'):
@@ -13,6 +16,7 @@ class StudyPredictor:
         for path in checkpoints:
             model,ck=load_deployed_model(path,device)
             ds=Images(root,'__no_cache__',split,ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
+            ds.deployment_input_key=(ck['config']['size'],ck['config'].get('normalization','legacy'))
             self.members.append((model,ds))
         self.df=self.members[0][1].df
         self.positions={name:i for i,name in enumerate(self.df.Dicom_id)}
@@ -36,12 +40,22 @@ class StudyPredictor:
         if self.aggregation=='frontal':
             fronts=small.ViewPosition.isin(['AP','PA','PA LLD']).to_numpy()
             if fronts.any():rows=rows[fronts];small=small.loc[fronts].reset_index(drop=True)
-        probs=[]
-        for model,ds in self.members:
-            image=[]
-            for idx in rows:
-                x,_,_=ds[int(idx)]
-                image.append(forward_probabilities(model,x.unsqueeze(0),self.device,self.tta).cpu().numpy()[0])
-            _,p,_=aggregate(small,np.stack(image),self.aggregation)
-            probs.append(p[0])
-        return study,submission_probabilities(np.mean(probs,axis=0))
+        probs=[];decoded={};tensors={}
+        try:
+            for model,ds in self.members:
+                image=[]
+                for idx in rows:
+                    idx=int(idx)
+                    if idx not in decoded:
+                        data=input_bytes if idx==index else self.original_path(idx).read_bytes()
+                        with Image.open(io.BytesIO(data)) as original_image:
+                            decoded[idx]=decode_original_like_cache(original_image)
+                    key=(idx,ds.deployment_input_key)
+                    if key not in tensors:tensors[key]=ds.transform(decoded[idx])
+                    x=tensors[key]
+                    image.append(forward_probabilities(model,x.unsqueeze(0),self.device,self.tta).cpu().numpy()[0])
+                _,p,_=aggregate(small,np.stack(image),self.aggregation)
+                probs.append(p[0])
+            return study,submission_probabilities(np.mean(probs,axis=0))
+        finally:
+            for image in decoded.values():image.close()
