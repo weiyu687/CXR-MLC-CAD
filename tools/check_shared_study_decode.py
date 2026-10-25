@@ -3,6 +3,7 @@
 Uses only generated images and tiny synthetic networks; no competition score.
 """
 from pathlib import Path
+import copy
 import shutil
 import tempfile
 from unittest.mock import patch
@@ -12,7 +13,7 @@ from PIL import Image
 import torch
 from src.data import aggregate
 from src.deployment import StudyPredictor
-from src.inference import forward_probabilities
+from src.inference import forward_probabilities,model_input_fingerprint
 from src.metrics import submission_probabilities
 from src.ensemble import combine_probabilities
 from src.preprocessing import decode_original_like_cache
@@ -72,6 +73,31 @@ def main():
                     raise AssertionError('Altered timing input accepted')
                 except ValueError as error:
                     assert 'differs from the original' in str(error)
+        twins=[copy.deepcopy(models[0]),copy.deepcopy(models[0])]
+        twin_config={'model':'synthetic_twin','size':64,'normalization':'legacy'}
+        def load_twin(path,device):
+            index=int(path)
+            return twins[index],{'config':twin_config,'state_dict':twins[index].state_dict()}
+        with patch('src.deployment.load_deployed_model',side_effect=load_twin):
+            predictor=StudyPredictor(['0','1'],root,device,'weighted',True)
+        assert predictor.unique_forward_groups==1
+        changed={'config':{**twin_config,'size':96},'state_dict':twins[0].state_dict()}
+        assert model_input_fingerprint(changed)!=predictor.forward_keys[0]
+        calls=[0,0]
+        for index,model in enumerate(twins):
+            def hook(module,inputs,output,index=index):calls[index]+=1
+            model.register_forward_hook(hook)
+        with torch.inference_mode():
+            first=predictor(predictor.original_path(0))[1]
+            assert calls==[4,0] # Two images, each with fixed flip TTA.
+            second=predictor(predictor.original_path(0))[1]
+            assert calls==[8,0],'Neural outputs leaked across calls'
+            np.testing.assert_array_equal(first,second)
+            independent=[]
+            for model,ds in predictor.members:
+                p=np.stack([forward_probabilities(model,ds[i][0].unsqueeze(0),device,True).numpy()[0] for i in [0,1]])
+                independent.append(aggregate(ds.df.iloc[:2].reset_index(drop=True),p,'weighted')[1][0])
+            np.testing.assert_array_equal(first,submission_probabilities(combine_probabilities(independent)))
     print('PASS: shared vs independent decode exact for four pooling rules, TTA, mixed sizes/normalization, missing frontal view; no cross-call cache; copied-image hash check')
 
 

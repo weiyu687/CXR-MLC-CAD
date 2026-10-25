@@ -97,6 +97,7 @@ def main():
         'local_mean_limit_passed':bool(mean_by_image.mean()<=100),'runtime':runtime_information(device),
         'checkpoint_sha256':report['checkpoint_sha256'],
         'ensemble_weights':report['arguments'].get('ensemble_weights'),
+        'unique_model_input_groups':getattr(predictor,'unique_forward_groups',len(predictor.members)),
         'submission_sha256':hashlib.sha256(Path(args.submission).read_bytes()).hexdigest(),
         'metadata_sha256':hashlib.sha256((root/'test.csv').read_bytes()).hexdigest(),
         'scope':'Conservative full-study inference repeated per input, including companion images, disk I/O and flushed CSV writes; initialization excluded',

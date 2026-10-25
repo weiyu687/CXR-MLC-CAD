@@ -14,6 +14,7 @@ from PIL import Image
 import torch
 from src.model import build_model
 from src.preprocessing import resize_original
+from tools.build_inference_variants import build_variants
 
 def main():
     project=Path(__file__).resolve().parents[1]
@@ -137,9 +138,29 @@ def main():
         cost=json.loads((tmp/'class_cost'/'cost_report.json').read_text())
         assert cost['submission_predictions_match'] and cost['max_probability_difference']==0
         assert not cost['official_sample_protocol'] and cost['ensemble_weights']==class_matrix
+        # An input-only variant must expose its actual inference size while
+        # preserving the distinct source training configuration and lineage.
+        resolution_source=tmp/'resolution_source.pt'
+        torch.save({'state_dict':build_model('tv_densenet121').state_dict(),
+                    'config':{'model':'tv_densenet121','size':320,'normalization':'legacy'},
+                    'epoch':None,'metrics':None},resolution_source)
+        variant=Path(build_variants(resolution_source,[384],tmp/'resolution_variants')['runs'][0]['run'])/'best.pt'
+        resolution_pred=tmp/'resolution_pred';resolution_bundle=tmp/'resolution_bundle';resolution_raw=tmp/'resolution_raw'
+        run(['predict.py','--checkpoint',variant,'--root',root,'--cache',cache,'--out',resolution_pred,
+             '--workers','0','--batch-size','1'])
+        run(['tools/package.py','--checkpoint',variant,'--predictions',resolution_pred,'--root',root,'--out',resolution_bundle])
+        info=json.loads((resolution_bundle/'checkpoint_info.json').read_text())[0]
+        assert info['training_configuration']['size']==320 and info['inference_configuration']['size']==384
+        assert info['epoch'] is None and info['training_selection_metrics'] is None
+        assert info['construction']['weights_unchanged'] and not info['construction']['training_performed']
+        run(['predict.py','--checkpoint','models/model_1.pt','--calibration','report.json','--root',only_test,
+             '--cache',tmp/'missing_cache','--out',resolution_raw,'--workers','0'],cwd=resolution_bundle)
+        run(['tools/verify_bundle.py','--bundle',resolution_bundle,'--root',only_test,
+             '--reproduced',resolution_raw/'submission.csv','--out',tmp/'resolution_verification.json'])
+        assert json.loads((tmp/'resolution_verification.json').read_text())['max_probability_difference']==0
         frozen['checkpoint_sha256']=['0'*64];calibration.write_text(json.dumps(frozen))
         result=subprocess.run([sys.executable,'predict.py','--checkpoint',str(checkpoint),'--calibration',str(calibration),
                                '--root',str(root),'--out',str(tmp/'must_fail')],cwd=project,env=env,capture_output=True,text=True)
         assert result.returncode!=0 and 'Calibration does not match' in result.stderr
-    print('PASS: validation-only export; legacy calibration; equal/global/class-specific frozen package reproduction and cost agreement; no external weight JSON or validation labels needed; identical CSV/model binding')
+    print('PASS: validation-only; legacy/equal/global/sparse classwise/resolution-variant frozen reproduction; separate training/inference sizes; cost agreement; no external weight JSON or valid labels needed')
 if __name__=='__main__':main()

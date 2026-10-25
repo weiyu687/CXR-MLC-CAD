@@ -5,7 +5,7 @@ import io
 import numpy as np
 from PIL import Image
 from .data import Images,aggregate
-from .inference import load_deployed_model,forward_probabilities
+from .inference import load_deployed_model,forward_probabilities,model_input_fingerprint
 from .metrics import submission_probabilities
 from .preprocessing import decode_original_like_cache
 from .ensemble import combine_probabilities,normalized_weights
@@ -13,13 +13,16 @@ from .ensemble import combine_probabilities,normalized_weights
 class StudyPredictor:
     def __init__(self,checkpoints,root,device,aggregation='frontal',tta=False,split='test',ensemble_weights=None):
         self.root=Path(root);self.device=device;self.aggregation=aggregation;self.tta=tta;self.split=split
-        self.members=[]
+        self.members=[];self.forward_keys=[]
         self.ensemble_weights=normalized_weights(ensemble_weights,len(checkpoints))
         for path in checkpoints:
             model,ck=load_deployed_model(path,device)
             ds=Images(root,'__no_cache__',split,ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
             ds.deployment_input_key=(ck['config']['size'],ck['config'].get('normalization','legacy'))
             self.members.append((model,ds))
+            signature=model_input_fingerprint(ck)
+            self.forward_keys.append(signature if signature is not None else ('unshared',len(self.members)-1))
+        self.unique_forward_groups=len(set(self.forward_keys))
         self.df=self.members[0][1].df
         self.positions={name:i for i,name in enumerate(self.df.Dicom_id)}
         self.study_rows={s:g.index.to_numpy() for s,g in self.df.groupby('Study_id',sort=False)}
@@ -42,9 +45,9 @@ class StudyPredictor:
         if self.aggregation=='frontal':
             fronts=small.ViewPosition.isin(['AP','PA','PA LLD']).to_numpy()
             if fronts.any():rows=rows[fronts];small=small.loc[fronts].reset_index(drop=True)
-        probs=[];decoded={};tensors={}
+        probs=[];decoded={};tensors={};predictions={}
         try:
-            for model,ds in self.members:
+            for member_index,(model,ds) in enumerate(self.members):
                 image=[]
                 for idx in rows:
                     idx=int(idx)
@@ -55,7 +58,10 @@ class StudyPredictor:
                     key=(idx,ds.deployment_input_key)
                     if key not in tensors:tensors[key]=ds.transform(decoded[idx])
                     x=tensors[key]
-                    image.append(forward_probabilities(model,x.unsqueeze(0),self.device,self.tta).cpu().numpy()[0])
+                    prediction_key=(self.forward_keys[member_index],idx,self.tta)
+                    if prediction_key not in predictions:
+                        predictions[prediction_key]=forward_probabilities(model,x.unsqueeze(0),self.device,self.tta).cpu().numpy()[0]
+                    image.append(predictions[prediction_key])
                 _,p,_=aggregate(small,np.stack(image),self.aggregation)
                 probs.append(p[0])
             return study,submission_probabilities(combine_probabilities(probs,self.ensemble_weights))
