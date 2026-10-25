@@ -38,9 +38,12 @@ def main():
     ap.add_argument('--aggregation',choices=['mean','max','frontal','weighted'],default='mean')
     ap.add_argument('--calibration',help='Frozen report.json; enables inference with only test.csv/test images')
     ap.add_argument('--export-images',action='store_true',help='Export single-model deterministic per-image probabilities for model selection')
+    ap.add_argument('--validation-only',action='store_true',help='Evaluate/export valid without opening test metadata or images; no submission CSV')
     args=ap.parse_args(); torch.set_num_threads(4)
     configure_deterministic_inference()
     frozen=json.loads(Path(args.calibration).read_text(encoding='utf-8')) if args.calibration else None
+    if args.validation_only and frozen:
+        raise ValueError('--validation-only cannot use test-only frozen calibration')
     if args.export_images and (frozen or len(args.checkpoint)!=1):
         raise ValueError('--export-images requires one checkpoint and an unfrozen validation run')
     checkpoint_hashes=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
@@ -52,7 +55,7 @@ def main():
         args.batch_size=frozen['arguments']['batch_size']
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     out=Path(args.out); out.mkdir(parents=True,exist_ok=True)
-    all_probs={'test':[]} if frozen else {'valid':[],'test':[]}
+    all_probs={'valid':[]} if args.validation_only else ({'test':[]} if frozen else {'valid':[],'test':[]})
     image_saved={}
     for checkpoint in args.checkpoint:
         from src.inference import load_deployed_model
@@ -70,19 +73,22 @@ def main():
             else: test_ids=ids
         del model
     metrics=frozen['validation'] if frozen else evaluate(valid_y,np.mean(all_probs['valid'],axis=0))
-    probs=np.mean(all_probs['test'],axis=0)
+    probs=np.mean(all_probs['test'],axis=0) if 'test' in all_probs else None
     probability_decimals=frozen.get('probability_decimals') if frozen else PROBABILITY_DECIMALS
     csv_decimal_places=frozen.get('csv_decimal_places',8) if frozen else CSV_DECIMAL_PLACES
-    if probability_decimals is not None:
+    if probability_decimals is not None and probs is not None:
         if probability_decimals!=PROBABILITY_DECIMALS:raise ValueError('Unsupported probability precision policy')
         probs=submission_probabilities(probs)
     runtime=runtime_information(device)
-    s=pd.DataFrame({'Study_id':np.repeat(test_ids,10),'Predict_class':np.tile(np.arange(1,11),len(test_ids)),
-                    'Probability':probs.reshape(-1),'Gate':np.tile(metrics['gates'],len(test_ids))})
-    meta=pd.read_csv(Path(args.root)/'test.csv').drop_duplicates('Study_id').set_index('Study_id')
-    s.insert(0,'Subject_id',meta.loc[s.Study_id].Subject_id.values)
-    s.to_csv(out/'submission.csv',index=False,encoding='utf-8',float_format='%.'+str(csv_decimal_places)+'f')
-    report={'validation':metrics,'submission':validate_submission(out/'submission.csv',args.root),
+    submission_checks=None
+    if probs is not None:
+        s=pd.DataFrame({'Study_id':np.repeat(test_ids,10),'Predict_class':np.tile(np.arange(1,11),len(test_ids)),
+                        'Probability':probs.reshape(-1),'Gate':np.tile(metrics['gates'],len(test_ids))})
+        meta=pd.read_csv(Path(args.root)/'test.csv').drop_duplicates('Study_id').set_index('Study_id')
+        s.insert(0,'Subject_id',meta.loc[s.Study_id].Subject_id.values)
+        s.to_csv(out/'submission.csv',index=False,encoding='utf-8',float_format='%.'+str(csv_decimal_places)+'f')
+        submission_checks=validate_submission(out/'submission.csv',args.root)
+    report={'validation':metrics,'submission':submission_checks,
             'checkpoint_sha256':checkpoint_hashes,'arguments':vars(args),
             'deterministic_inference':True,
             'runtime':runtime,'runtime_matches_calibration':runtime==frozen.get('runtime') if frozen else None,
@@ -90,14 +96,15 @@ def main():
             'gate_policy':frozen.get('gate_policy','legacy_threshold_value') if frozen else 'half_step_between_distinct_validation_probabilities',
             'validation_recomputed':not bool(frozen)}
     (out/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
-    saved={'test':probs,'study_ids':test_ids}
+    saved={'test':probs,'study_ids':test_ids} if probs is not None else {}
     if not frozen:saved.update(valid=np.mean(all_probs['valid'],axis=0),targets=valid_y)
     if args.export_images:
         metadata={'checkpoint_sha256':checkpoint_hashes[0],'batch_size':args.batch_size,'tta':args.tta,
                   'deterministic_inference':True,
                   'runtime':runtime,
-                  'validation_csv_sha256':hashlib.sha256((Path(args.root)/'valid.csv').read_bytes()).hexdigest(),
-                  'test_csv_sha256':hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()}
+                  'validation_csv_sha256':hashlib.sha256((Path(args.root)/'valid.csv').read_bytes()).hexdigest()}
+        if 'test' in all_probs:
+            metadata['test_csv_sha256']=hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()
         saved.update(image_saved,image_prediction_metadata=np.array(json.dumps(metadata)))
     np.savez_compressed(out/'predictions.npz',**saved)
     print(json.dumps(report,indent=2))

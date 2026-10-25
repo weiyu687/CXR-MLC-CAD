@@ -58,10 +58,28 @@ def main():
         valid.to_csv(root/'valid.csv',index=False)
         (cache/'valid').mkdir()
         for i in range(1,4):shutil.copy2(cache/'test'/f'x{i}.jpg',cache/'valid'/f'v{i}.jpg')
+        # Candidate selection must also work when test metadata/images do not
+        # exist. Its NPZ still feeds the same ensemble-selection implementation.
+        valid_only_root=tmp/'only_valid';valid_only_root.mkdir()
+        shutil.copy2(root/'valid.csv',valid_only_root/'valid.csv')
+        valid_only=tmp/'validation_export'
+        run(['predict.py','--checkpoint',checkpoint,'--root',valid_only_root,'--cache',cache,
+             '--out',valid_only,'--workers','0','--batch-size','2','--export-images','--validation-only'])
+        assert not (valid_only/'submission.csv').exists()
+        validation_report=json.loads((valid_only/'report.json').read_text())
+        assert validation_report['submission'] is None and validation_report['validation_recomputed']
+        with np.load(valid_only/'predictions.npz') as saved:
+            assert 'valid_images' in saved and 'test' not in saved and 'test_images' not in saved
+            metadata=json.loads(str(saved['image_prediction_metadata']))
+            assert 'test_csv_sha256' not in metadata
+        assert not (valid_only_root/'test.csv').exists()
         calibrated=tmp/'calibrated';new_bundle=tmp/'calibrated_bundle';new_reproduced=tmp/'new_reproduced'
         run(['predict.py','--checkpoint',checkpoint,'--root',root,'--cache',cache,'--out',calibrated,
              '--workers','0','--batch-size','2','--export-images'])
         generated=json.loads((calibrated/'report.json').read_text())
+        assert generated['validation']==validation_report['validation']
+        with np.load(calibrated/'predictions.npz') as full, np.load(valid_only/'predictions.npz') as validation:
+            np.testing.assert_array_equal(full['valid_images'],validation['valid_images'])
         assert generated['probability_decimals']==12 and generated['csv_decimal_places']==15
         assert generated['gate_policy']=='half_step_between_distinct_validation_probabilities'
         run(['tools/package.py','--checkpoint',checkpoint,'--predictions',calibrated,'--root',root,'--out',new_bundle])
@@ -78,5 +96,5 @@ def main():
         result=subprocess.run([sys.executable,'predict.py','--checkpoint',str(checkpoint),'--calibration',str(calibration),
                                '--root',str(root),'--out',str(tmp/'must_fail')],cwd=project,env=env,capture_output=True,text=True)
         assert result.returncode!=0 and 'Calibration does not match' in result.stderr
-    print('PASS: legacy and half-step calibration, cached/raw package reproduction, identical CSV, runtime/model binding and test-only inference')
+    print('PASS: validation-only export without test access; legacy and half-step calibration; cached/raw package reproduction; identical CSV; runtime/model binding; test-only inference')
 if __name__=='__main__':main()

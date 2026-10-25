@@ -55,7 +55,7 @@ def main():
         for i,run in enumerate(runs):
             out=work/'exports'/('tta' if tta else 'plain')/f'{i:02d}_{run.name}'
             command=['predict.py','--checkpoint',run/'best.pt','--root',root,'--cache',args.cache,
-                     '--out',out,'--workers','0','--batch-size',str(args.batch_size),'--export-images']
+                     '--out',out,'--workers','0','--batch-size',str(args.batch_size),'--export-images','--validation-only']
             if tta:command.append('--tta')
             execute(command,work/f'export_{int(tta)}_{i}.log')
             report=read(out/'report.json')
