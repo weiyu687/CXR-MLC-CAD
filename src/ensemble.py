@@ -10,8 +10,10 @@ def normalized_weights(weights, count):
     if weights is None:
         return None
     values=np.asarray(weights,dtype=np.float64)
-    if values.shape not in [(count,),(count,10)] or not np.isfinite(values).all() or (values<=0).any():
-        raise ValueError('Provide positive weights shaped [models] or [models, 10 classes]')
+    if values.shape not in [(count,),(count,10)] or not np.isfinite(values).all():
+        raise ValueError('Provide finite weights shaped [models] or [models, 10 classes]')
+    if (values<0).any() or (values.ndim==1 and (values==0).any()):
+        raise ValueError('Global weights must be positive; class-specific weights must be nonnegative')
     total=values.sum(axis=0)
     if not np.isfinite(total).all() or (total<=0).any():
         raise ValueError('Invalid sum of ensemble weights')

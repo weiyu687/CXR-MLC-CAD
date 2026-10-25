@@ -84,7 +84,7 @@ def cross_fit(y,members,patients):
             'weights':weights.tolist(),'refit_validation':metrics},predictions
 
 
-def load_exports(checkpoints,exports,root,aggregation):
+def load_exports(checkpoints,exports,root,aggregation,tta=False):
     if len(checkpoints)!=3 or len(exports)!=3:raise ValueError('Provide exactly three members and exports')
     df=frame(root,'valid');valid_hash=hashlib.sha256((Path(root)/'valid.csv').read_bytes()).hexdigest()
     hashes=[hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in checkpoints]
@@ -95,8 +95,8 @@ def load_exports(checkpoints,exports,root,aggregation):
             metadata=json.loads(str(saved['image_prediction_metadata']))
             if metadata['checkpoint_sha256']!=checkpoint_hash or metadata['validation_csv_sha256']!=valid_hash:
                 raise ValueError('Export model or validation metadata differs')
-            if metadata['batch_size']!=1 or metadata['tta'] or not metadata['deterministic_inference']:
-                raise ValueError('Fusion fitting expects deterministic batch=1 exports without TTA')
+            if metadata['batch_size']!=1 or metadata['tta']!=tta or not metadata['deterministic_inference']:
+                raise ValueError('Fusion fitting expects deterministic batch=1 exports with the declared TTA setting')
             current=json.dumps(metadata['runtime'],sort_keys=True)
             if settings is not None and settings!=current:raise ValueError('Source runtimes differ')
             settings=current
@@ -110,33 +110,40 @@ def load_exports(checkpoints,exports,root,aggregation):
     return reference_y,np.asarray(members),patients,hashes,valid_hash,json.loads(settings)
 
 
-def main():
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--checkpoint',nargs=3,required=True)
-    parser.add_argument('--prediction-files',nargs=3,required=True)
-    parser.add_argument('--root',default='raw_data/cxr_first')
-    parser.add_argument('--aggregation',choices=['frontal','mean','max','weighted'],default='frontal')
-    parser.add_argument('--out',required=True)
-    args=parser.parse_args()
-    out=Path(args.out)
+def fit_exported_fusion(checkpoints,exports,root,aggregation,out,tta=False):
+    out=Path(out)
     if out.exists():raise FileExistsError('Existing analysis preserved: '+str(out))
-    y,members,patients,hashes,valid_hash,runtime=load_exports(args.checkpoint,args.prediction_files,args.root,args.aggregation)
+    y,members,patients,hashes,valid_hash,runtime=load_exports(checkpoints,exports,root,aggregation,tta)
     result,oof=cross_fit(y,members,patients)
     protocol={'method':'quarter-simplex class grid, shrunk toward global fusion; five repeated five-fold patient-group CV',
               'seeds':list(SEEDS),'shrinkage':result['selected_shrinkage'],
               'mean_oof_macro_auc':result['mean_oof_macro_auc'],
               'refit_macro_auc':result['refit_validation']['macro_auc'],
               'refit_macro_f1_tuned':result['refit_validation']['macro_f1_tuned'],
-              'scope':'Validation patients only; checkpoints already selected on valid; refit metrics are optimistic model-selection estimates, not hidden-test scores'}
+              'tta':tta,'aggregation':aggregation,
+              'scope':'Validation patients only; image checkpoints, members and aggregation already selected on valid; refit and fusion OOF metrics are model-selection estimates, not independent hidden-test scores'}
     spec={'schema_version':1,'checkpoint_sha256':hashes,'class_ids':list(range(1,11)),
           'weights':result['weights'],'selection_protocol':protocol}
     result.update(checkpoint_sha256=hashes,validation_csv_sha256=valid_hash,runtime=runtime,
-                  aggregation=args.aggregation,script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                  aggregation=aggregation,tta=tta,script_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   scope=protocol['scope'])
     out.mkdir(parents=True)
     (out/'analysis.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
     (out/'weights.json').write_text(json.dumps(spec,indent=2),encoding='utf-8')
     np.savez_compressed(out/'private_oof.npz',targets=y,patients=patients,**oof)
+    return result,spec
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--checkpoint',nargs=3,required=True)
+    parser.add_argument('--prediction-files',nargs=3,required=True)
+    parser.add_argument('--root',default='raw_data/cxr_first')
+    parser.add_argument('--aggregation',choices=['frontal','mean','max','weighted'],default='frontal')
+    parser.add_argument('--tta',action='store_true',help='Require matching flip-TTA exports for every member')
+    parser.add_argument('--out',required=True)
+    args=parser.parse_args()
+    result,_=fit_exported_fusion(args.checkpoint,args.prediction_files,args.root,args.aggregation,args.out,args.tta)
     print(json.dumps({'selected_shrinkage':result['selected_shrinkage'],
                       'mean_oof_macro_auc':result['mean_oof_macro_auc'],
                       'refit_validation':result['refit_validation'],'scope':result['scope']},indent=2))

@@ -33,6 +33,8 @@ def main():
     ap.add_argument('--max-members',type=int,default=0,help='Limit equal-weight subsets before measured latency screening')
     ap.add_argument('--weight-grid',choices=['equal','quarter'],default='quarter',help='Small fixed global weight grid; never class-specific fitting')
     ap.add_argument('--ensemble-presets-registry',help='Explicit frozen ensemble specifications; re-evaluated using fresh exports')
+    ap.add_argument('--classwise-best-global',action=argparse.BooleanOptionalAction,default=True,
+                    help='Fit the predefined patient-CV classwise grid once for each TTA mode\'s best global three-model candidate')
     ap.add_argument('--allow-busy-gpu',action='store_true',help='Explicitly bypass the default low-load preflight before validation timing')
     ap.add_argument('--timing-root',help='Use a verified train/valid SSD copy to screen computation before final testing')
     ap.add_argument('--timing-split',choices=['train','valid','test'],default='test')
@@ -74,6 +76,12 @@ def main():
                  '--weight-grid',args.weight_grid,
                  '--root',root,'--out',selection],work/f'ensembles_{int(tta)}.log')
         candidates.extend(read(selection)['candidates'])
+    if args.classwise_best_global:
+        from tools.automatic_fusion import fit_best_global_triples
+        fitted=fit_best_global_triples(candidates,export_index,root,work/'classwise')
+        candidates.extend(fitted)
+        print(json.dumps({'stage':'CLASSWISE_CANDIDATES_FITTED','count':len(fitted),
+                          'validation_macro_auc':[c['metrics']['macro_auc'] for c in fitted]}),flush=True)
     if args.ensemble_presets_registry:
         candidates.extend(evaluate_presets(read_presets(args.ensemble_presets_registry,root),export_index,root,args.max_members))
     candidates.sort(key=lambda c:(-c['metrics']['macro_auc'],-c['metrics']['macro_f1_tuned'],
@@ -113,6 +121,7 @@ def main():
     evidence['max_ensemble_members']=args.max_members or len(runs)
     evidence['weight_grid']=args.weight_grid
     evidence['ensemble_presets_registry']=args.ensemble_presets_registry
+    evidence['classwise_best_global']=args.classwise_best_global
     evidence_path=work/'selected.json';evidence_path.write_text(json.dumps(evidence,indent=2),encoding='utf-8')
     predictions=work/'selected_predictions'
     command=['predict.py','--checkpoint',*selected['checkpoints'],'--aggregation',selected['aggregation'],

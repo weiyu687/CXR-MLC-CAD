@@ -23,6 +23,15 @@ def main():
     normalized=normalized_weights(matrix*3,2)
     np.testing.assert_allclose(np.sum(normalized,axis=0),np.ones(10),rtol=0,atol=1e-15)
     assert normalized==normalized_weights(normalized,2)
+    sparse=np.zeros((3,10));sparse[0,::2]=1;sparse[1,1::2]=1
+    expected=np.stack([values[c%2,:,c] for c in range(10)],axis=-1)
+    np.testing.assert_array_equal(combine_probabilities(values,sparse),expected)
+    empty_class=np.ones((3,10));empty_class[:,4]=0
+    for invalid_matrix in [np.zeros((3,10)),empty_class,np.full((3,10),-1.)]:
+        try:
+            normalized_weights(invalid_matrix,3)
+            raise AssertionError('Empty or negative classwise weights accepted')
+        except ValueError:pass
     for weights in [[0,1],[-1,2],[np.nan,1],[np.inf,1],[1],[1,2,3]]:
         try:
             normalized_weights(weights,2)

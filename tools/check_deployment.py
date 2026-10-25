@@ -18,7 +18,10 @@ from src.preprocessing import resize_original
 def main():
     project=Path(__file__).resolve().parents[1]
     torch.set_num_threads(2);torch.manual_seed(123)
-    env=dict(os.environ,CUDA_VISIBLE_DEVICES='-1')
+    # Keep CPU regression subprocesses in a controlled library-thread setting.
+    # This does not change the CUDA deployment path or its timing protocol.
+    env=dict(os.environ,CUDA_VISIBLE_DEVICES='-1',OMP_NUM_THREADS='1',
+             MKL_NUM_THREADS='1',OPENBLAS_NUM_THREADS='1',PYTHONFAULTHANDLER='1')
     with tempfile.TemporaryDirectory() as folder:
         tmp=Path(folder);root=tmp/'data';cache=tmp/'cache'
         root.mkdir();(cache/'test').mkdir(parents=True)
@@ -111,7 +114,7 @@ def main():
              '--reproduced',weighted_raw/'submission.csv','--out',tmp/'weighted_verification.json'])
         assert json.loads((tmp/'weighted_verification.json').read_text())['max_probability_difference']==0
         class_spec=tmp/'class_weights.json'
-        class_matrix=np.stack([np.linspace(.2,.8,10),np.linspace(.8,.2,10)]).tolist()
+        class_matrix=np.stack([np.linspace(0.,1.,10),np.linspace(1.,0.,10)]).tolist()
         class_spec.write_text(json.dumps({'schema_version':1,'checkpoint_sha256':[
             hashlib.sha256(checkpoint.read_bytes()).hexdigest(),hashlib.sha256(second_checkpoint.read_bytes()).hexdigest()],
             'class_ids':list(range(1,11)),'weights':class_matrix}))
