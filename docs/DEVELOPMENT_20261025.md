@@ -185,3 +185,5 @@ python -m tools.fit_classwise_fusion --checkpoint outputs/soup_baseline_s2036_v2
 ```
 
 PyTorch 2.10 合成整包检查已覆盖逐类融合、缓存/原图预测、冻结后删除外部权重 JSON、只有 test 数据时独立复现，以及 cost.py 与完整 CSV 的数值一致。合成耗时检查只验证程序一致性，不是官方 5/100/3 测时或 T4 性能证据。真实三模型仍须在最终 valid 原图耗时筛查后才能进入交付包。
+
+另外在 DenseNet 全量训练与其他图形程序同时占用显卡时，对这三个固定模型做了一次真实 valid SSD 原图耗时预检：5 张独立预热、100 个输入、连续 3 轮，batch=1，包含完整检查、固定逐类融合及 CSV 刷新写出，平均 **257.63ms**、P95 **469.24ms**，未通过本机 100ms 限制。该结果属于共享负载下的观察，不能用作空闲性能或 T4 性能结论，也未触发测试集推理或候选淘汰。训练保持运行；最终仍按预定流程在训练结束后统一筛查候选耗时。原始报告和共享负载上下文保存在本地 `outputs/classwise_latency_validation_concurrent*.json`。
