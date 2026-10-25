@@ -163,4 +163,12 @@ python -m tools.compare_patient_holdout --runs outputs/research_ablation_s2036/b
 
 固定的 3×10 权重、类别顺序和模型 SHA 写入明确的 JSON，并嵌入冻结推理报告。`tools/ensemble_presets.py` 在最终流程中核对源模型、验证 CSV、权重文件摘要及每个新导出的运行配置，重新计算实际 AUC，拒绝缺失成员或与先前证据不符的结果。既有四个单模型候选和这个固定融合均由同一清单显式配置；最终选择前冻结清单字节。
 
+拟合本身可由公开的 `tools/fit_classwise_fusion.py` 复现。该脚本只读取 `valid.csv` 和指定成员的验证导出，严格核对图像顺序、模型/CSV 摘要、batch、TTA 与运行环境；按患者划分拟合权重，保存全部 25 折结果及本地 OOF 数组。AUC 先严格排序，只在完全平分时按全局距离、网格顺序打破平分。已从公开脚本重新运行，五个种子各强度的 AUC、最终权重、患者对齐及第一个重复的实际输出概率均与探索记录完全一致。原始逐例数组不上传仓库。
+
+以下命令使用已验证的 Python 3.12 / PyTorch 2.10 环境，输出目录须不存在：
+
+```powershell
+python -m tools.fit_classwise_fusion --checkpoint outputs/soup_baseline_s2036_v2/mix_3/best.pt outputs/soup_cross_warm_s2036/source_2/best.pt outputs/efficientnetv2_b0_s123/best.pt --prediction-files outputs/soup_baseline_s2036_v2/mix_3/validation/predictions.npz outputs/soup_cross_warm_s2036/source_2/validation/predictions.npz outputs/legacy_complementarity_bs1/efficientnetv2_b0_s123/predictions.npz --out outputs/classwise_fit
+```
+
 PyTorch 2.10 合成整包检查已覆盖逐类融合、缓存/原图预测、冻结后删除外部权重 JSON、只有 test 数据时独立复现，以及 cost.py 与完整 CSV 的数值一致。合成耗时检查只验证程序一致性，不是官方 5/100/3 测时或 T4 性能证据。真实三模型仍须在最终 valid 原图耗时筛查后才能进入交付包。
