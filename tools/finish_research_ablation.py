@@ -89,6 +89,7 @@ def main():
         'outputs/research_ablation_s2036/asl_head_warmup'])
     parser.add_argument('--reference', default='outputs/resnet50_imagenet_hold_s2030')
     parser.add_argument('--reference-full', default='outputs/resnet50_imagenet_full_s2031')
+    parser.add_argument('--extra-runs',nargs='*',default=[],help='Explicit additional validation-screened fixed candidates')
     parser.add_argument('--target-python', required=True, help='Verified Python 3.12 / PyTorch 2.10 interpreter')
     parser.add_argument('--root', default='raw_data/cxr_first')
     parser.add_argument('--cache', required=True)
@@ -118,6 +119,8 @@ def main():
             raise FileExistsError('Existing output preserved: ' + str(path))
     if len(set(map(str, map(Path, args.runs)))) != len(args.runs):
         raise ValueError('Duplicate comparison run')
+    for run in args.extra_runs:
+        if not (Path(run)/'best.pt').is_file():raise FileNotFoundError(Path(run)/'best.pt')
     work.mkdir(parents=True)
     controller_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, check=True).stdout.strip()
 
@@ -193,7 +196,8 @@ def main():
         efficient_448_record=completed_training(efficientnet_448)
         execute(['tools/finalize.py', '--runs', args.reference_full, refinement,
                  efficientnet, efficientnet_448,
-                 *[r['official_validation_candidate'] for r in records], '--max-members','3','--root', args.root,
+                 *[r['official_validation_candidate'] for r in records], *args.extra_runs,
+                 '--max-members','3','--root', args.root,
                  '--cache', args.cache, '--ssd-root', args.ssd_root, '--timing-root', args.timing_root,
                  '--timing-split', 'valid', '--study-timing', '--batch-size', '1',
                  '--latency-statistic', 'mean', '--latency-ms', '100', '--samples', '100',
@@ -224,6 +228,7 @@ def main():
             raise RuntimeError('Frozen final cost/reproduction check failed; preserve evidence without test-based model reselection')
         summary = {'bundle': str(bundle), 'recipe_choice': str(work / 'recipe_choice.json'),
                    'refinement': refined, 'efficientnet':efficient_record,'efficientnet_448':efficient_448_record,
+                   'extra_validation_candidates':args.extra_runs,
                    'finalization': read(work / 'final_selection' / 'complete.json'),
                    'cost': cost, 'official_website_submission_performed': False,
                    'overall_deliverable_complete': False,
