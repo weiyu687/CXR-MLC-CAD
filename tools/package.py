@@ -35,7 +35,7 @@ def main():
         checkpoint_info.append({'path':paths[-1],'training_configuration':ck['config'],
                                 'epoch':ck.get('epoch'),'training_selection_aggregation':ck.get('selection_aggregation','mean'),
                                 'training_selection_metrics':ck.get('metrics'),'holdout_selection_metrics':ck.get('holdout_metrics'),
-                                'provenance':ck.get('provenance')})
+                                'provenance':ck.get('provenance'),'construction':ck.get('construction')})
         del ck
     upstream=[]
     for item in checkpoint_info:
