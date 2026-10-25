@@ -46,3 +46,18 @@ python -m tools.compare_patient_holdout --runs outputs/research_ablation_s2036/b
 先比较本组实际留出结果，再决定分类头和全 train 微调，不预先将未训练的复杂架构放进提交包。选用依据包括留出均值、逐类变化和患者配对区间，官方验证作为另一个划分报告。进入全 train 微调后，原患者留出不再独立，必须明确标注。
 
 新文件夹须完成 PyTorch 2.10、batch=1 的最终推理、原图独立复现、大小核验及包含写出的计时。官网 10 月 23 日 PDF 链接已于 10 月 25 日重新核对。T4 / CUDA 12.8 仍需主办方复测。第一轮交付包保持不变，不执行网站提交。
+
+## 有限后台衔接
+
+`tools/finish_research_ablation.py` 默认只打印参数，`--execute` 执行一次有限流程，可用 `--wait-process <明确的训练队列PID>` 等待本机 Windows 队列成功结束。它不会修改、终止其他进程，也不是定时任务。若队列失败、任一训练尚未达到预定轮数/早停条件、checkpoint 与历史不符，立即停止并保留证据。
+
+预定步骤：
+
+1. 三组完整训练后，以同一患者划分上的既有 ImageNet ResNet50 作为报告参考，重新导出并做 1000 次患者配对 bootstrap。三组 DenseNet 中按留出点估计选一个配方，置信区间仅作不确定性说明。
+2. 该 DenseNet 在全 train 上做最多 6 轮、patience=3 的 384 输入微调，lr=3e-5、seed=2038；损失配方沿用获选组，不做 Mixup。进入此步后原患者留出不再独立，checkpoint 改由官方 valid 选择。这是预先固定的微调计划，不宣称分辨率变化已通过单因素验证。
+3. 仅比较该完整 DenseNet 与已完成的 ImageNet ResNet50 全 train 模型，验证选择及耗时筛查通过后，生成新的 `submission/round2_bundle` 并在 PyTorch 2.10 batch=1 独立读取全部原图复现。
+4. 冻结模型后，固定随机种子抽取 5 张预热与 100 张测试图，仅检查 cost.py 的三轮结果复现与写出耗时。此结果不触发测试集驱动的模型重选。
+
+本地状态文件 `outputs/research_delivery_s2038/status.json` 记录进度与控制器源码提交，阶段日志位于同一目录。成功生成推理包后的阶段为 **PREPARED_FOR_MATERIAL_REVIEW**：仍需准确制作声明工作簿、人工检查渲染图、补入测时证据、更新清单并打包归档，不能将后台启动或这个准备阶段说成所有参赛交付已完成。未训练的 query 模型不进入该有限流程。
+
+`tools/check_research_finisher.py` 已用临时合成记录检查提前中断拒绝、早停/轮数完成判定、权重与历史绑定，以及自建子进程成功/失败退出码处理。
