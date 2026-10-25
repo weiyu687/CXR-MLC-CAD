@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-依用户提出的“先阅读相关 SOTA 论文和大量代码仓库”，原串行训练与交付队列已停止。论文依据、21 个仓库的实际阅读范围、实现发现和后续优先级见 [RESEARCH_REVIEW.md](RESEARCH_REVIEW.md)。目前没有新的可提交包或官方分数，第一轮包保持原样。
+依用户提出的“先阅读相关 SOTA 论文和大量代码仓库”，原串行训练与交付队列已停止。论文依据、21 个仓库的实际阅读范围、实现发现和后续优先级见 [RESEARCH_REVIEW.md](RESEARCH_REVIEW.md)。2026-10-25 用户要求继续开发后，已启动研究中预定的三组有限对照，新增实现与实际进度见 [DEVELOPMENT_20261025.md](DEVELOPMENT_20261025.md)。目前没有新的可提交包或官方分数，第一轮包保持原样。
 
 [官网新增规则 PDF](https://ncccu2026.oss-cn-zhangjiakou.aliyuncs.com/ueditor/20261023/aa80bececc2ee40e69cde5f8f2a0eaec.pdf)明确允许非医学、许可满足要求的通用预训练。第一轮只按网页概述限制为完全从零训练，过于保守，已纠正。当前已实际审计并下载的仍为 torchvision 官方 ImageNet ResNet50、EfficientNetV2-S、DenseNet121；未使用医学权重或外部医学数据。
 
