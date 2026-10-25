@@ -14,6 +14,7 @@ from src.data import aggregate
 from src.deployment import StudyPredictor
 from src.inference import forward_probabilities
 from src.metrics import submission_probabilities
+from src.ensemble import combine_probabilities
 from src.preprocessing import decode_original_like_cache
 
 
@@ -40,8 +41,9 @@ def main():
             Image.fromarray(((x*7+i*53)%256).astype(np.uint8)).save(path,quality=87)
         for mode in ['mean','max','frontal','weighted']:
             for tta in [False,True]:
+                weights=[.25,.5,.25] if tta else None
                 with patch('src.deployment.load_deployed_model',side_effect=load):
-                    predictor=StudyPredictor(['0','1','2'],root,device,mode,tta)
+                    predictor=StudyPredictor(['0','1','2'],root,device,mode,tta,ensemble_weights=weights)
                 with torch.inference_mode():
                     expected=[]
                     for model,ds in predictor.members:
@@ -49,7 +51,7 @@ def main():
                                         for i in range(len(ds))])
                         ids,p,_=aggregate(ds.df,image,mode)
                         expected.append(p)
-                    expected=submission_probabilities(np.mean(expected,axis=0))
+                    expected=submission_probabilities(combine_probabilities(expected,weights))
                     for study_index,idx in enumerate([0,2]):
                         with patch('src.deployment.decode_original_like_cache',wraps=decode_original_like_cache) as decode:
                             study,actual=predictor(predictor.original_path(idx))

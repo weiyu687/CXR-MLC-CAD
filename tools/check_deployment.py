@@ -92,9 +92,27 @@ def main():
         actual=json.loads((tmp/'verification.json').read_text())
         assert actual['max_probability_difference']==0 and actual['runtime_recorded']
         assert not (only_test/'valid.csv').exists()
+        # A two-model weighted result must retain its exact blend after
+        # packaging and raw-image reproduction without validation labels.
+        second_checkpoint=tmp/'second.pt'
+        second=torch.load(checkpoint,map_location='cpu',weights_only=False)
+        second['state_dict']['fc.bias']+=torch.linspace(-.5,.5,10)
+        torch.save(second,second_checkpoint)
+        weighted=tmp/'weighted';weighted_bundle=tmp/'weighted_bundle';weighted_raw=tmp/'weighted_raw'
+        run(['predict.py','--checkpoint',checkpoint,second_checkpoint,'--ensemble-weights','.25','.75',
+             '--root',root,'--cache',cache,'--out',weighted,'--workers','0','--batch-size','1'])
+        weighted_report=json.loads((weighted/'report.json').read_text())
+        assert weighted_report['arguments']['ensemble_weights']==[.25,.75]
+        run(['tools/package.py','--checkpoint',checkpoint,second_checkpoint,'--predictions',weighted,
+             '--root',root,'--out',weighted_bundle])
+        run(['predict.py','--checkpoint','models/model_1.pt','models/model_2.pt','--calibration','report.json',
+             '--root',only_test,'--cache',tmp/'missing_cache','--out',weighted_raw,'--workers','0'],cwd=weighted_bundle)
+        run(['tools/verify_bundle.py','--bundle',weighted_bundle,'--root',only_test,
+             '--reproduced',weighted_raw/'submission.csv','--out',tmp/'weighted_verification.json'])
+        assert json.loads((tmp/'weighted_verification.json').read_text())['max_probability_difference']==0
         frozen['checkpoint_sha256']=['0'*64];calibration.write_text(json.dumps(frozen))
         result=subprocess.run([sys.executable,'predict.py','--checkpoint',str(checkpoint),'--calibration',str(calibration),
                                '--root',str(root),'--out',str(tmp/'must_fail')],cwd=project,env=env,capture_output=True,text=True)
         assert result.returncode!=0 and 'Calibration does not match' in result.stderr
-    print('PASS: validation-only export without test access; legacy and half-step calibration; cached/raw package reproduction; identical CSV; runtime/model binding; test-only inference')
+    print('PASS: validation-only export without test access; legacy and half-step calibration; equal/weighted cached/raw package reproduction; identical CSV; runtime/model binding; test-only inference')
 if __name__=='__main__':main()

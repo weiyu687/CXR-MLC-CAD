@@ -47,7 +47,8 @@ def main():
         assert hashlib.sha256(path.read_bytes()).hexdigest()==digest
         checkpoint_paths.append(path)
     assert len(checkpoint_paths)==len(report['checkpoint_sha256'])>0
-    predictor=StudyPredictor(checkpoint_paths,root,device,report['arguments']['aggregation'],report['arguments']['tta'])
+    predictor=StudyPredictor(checkpoint_paths,root,device,report['arguments']['aggregation'],report['arguments']['tta'],
+                             ensemble_weights=report['arguments'].get('ensemble_weights'))
     from predict import validate_submission
     validate_submission(args.submission,root)
     meta=predictor.df
@@ -95,6 +96,7 @@ def main():
         'probability_tolerance':args.tolerance,'submission_predictions_match':True,
         'local_mean_limit_passed':bool(mean_by_image.mean()<=100),'runtime':runtime_information(device),
         'checkpoint_sha256':report['checkpoint_sha256'],
+        'ensemble_weights':report['arguments'].get('ensemble_weights'),
         'submission_sha256':hashlib.sha256(Path(args.submission).read_bytes()).hexdigest(),
         'metadata_sha256':hashlib.sha256((root/'test.csv').read_bytes()).hexdigest(),
         'scope':'Conservative full-study inference repeated per input, including companion images, disk I/O and flushed CSV writes; initialization excluded',

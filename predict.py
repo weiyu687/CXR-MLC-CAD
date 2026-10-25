@@ -12,6 +12,7 @@ from src.model import build_model
 from src.metrics import evaluate,submission_probabilities,PROBABILITY_DECIMALS,CSV_DECIMAL_PLACES
 from train import predict
 from src.inference import configure_deterministic_inference,runtime_information
+from src.ensemble import combine_probabilities,normalized_weights
 
 def validate_submission(path, root):
     s=pd.read_csv(path)
@@ -35,6 +36,7 @@ def main():
     ap.add_argument('--batch-size',type=int,default=64)
     ap.add_argument('--workers',type=int,default=2)
     ap.add_argument('--tta',action='store_true')
+    ap.add_argument('--ensemble-weights',nargs='+',type=float,help='Fixed global positive weights, in checkpoint order')
     ap.add_argument('--aggregation',choices=['mean','max','frontal','weighted'],default='mean')
     ap.add_argument('--calibration',help='Frozen report.json; enables inference with only test.csv/test images')
     ap.add_argument('--export-images',action='store_true',help='Export single-model deterministic per-image probabilities for model selection')
@@ -46,6 +48,8 @@ def main():
         raise ValueError('--validation-only cannot use test-only frozen calibration')
     if args.export_images and (frozen or len(args.checkpoint)!=1):
         raise ValueError('--export-images requires one checkpoint and an unfrozen validation run')
+    if args.export_images and args.ensemble_weights is not None:
+        raise ValueError('--export-images exports unmixed single-model probabilities')
     checkpoint_hashes=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
     if frozen:
         if frozen['checkpoint_sha256']!=checkpoint_hashes:
@@ -53,6 +57,8 @@ def main():
         args.tta=frozen['arguments']['tta']
         args.aggregation=frozen['arguments']['aggregation']
         args.batch_size=frozen['arguments']['batch_size']
+        args.ensemble_weights=frozen['arguments'].get('ensemble_weights')
+    args.ensemble_weights=normalized_weights(args.ensemble_weights,len(args.checkpoint))
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     out=Path(args.out); out.mkdir(parents=True,exist_ok=True)
     all_probs={'valid':[]} if args.validation_only else ({'test':[]} if frozen else {'valid':[],'test':[]})
@@ -72,8 +78,8 @@ def main():
             if split=='valid': valid_y=y
             else: test_ids=ids
         del model
-    metrics=frozen['validation'] if frozen else evaluate(valid_y,np.mean(all_probs['valid'],axis=0))
-    probs=np.mean(all_probs['test'],axis=0) if 'test' in all_probs else None
+    metrics=frozen['validation'] if frozen else evaluate(valid_y,combine_probabilities(all_probs['valid'],args.ensemble_weights))
+    probs=combine_probabilities(all_probs['test'],args.ensemble_weights) if 'test' in all_probs else None
     probability_decimals=frozen.get('probability_decimals') if frozen else PROBABILITY_DECIMALS
     csv_decimal_places=frozen.get('csv_decimal_places',8) if frozen else CSV_DECIMAL_PLACES
     if probability_decimals is not None and probs is not None:
@@ -97,7 +103,7 @@ def main():
             'validation_recomputed':not bool(frozen)}
     (out/'report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     saved={'test':probs,'study_ids':test_ids} if probs is not None else {}
-    if not frozen:saved.update(valid=np.mean(all_probs['valid'],axis=0),targets=valid_y)
+    if not frozen:saved.update(valid=combine_probabilities(all_probs['valid'],args.ensemble_weights),targets=valid_y)
     if args.export_images:
         metadata={'checkpoint_sha256':checkpoint_hashes[0],'batch_size':args.batch_size,'tta':args.tta,
                   'deterministic_inference':True,

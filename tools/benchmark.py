@@ -16,11 +16,13 @@ from src.inference import configure_deterministic_inference,runtime_information
 from src.inference import load_deployed_model,forward_probabilities
 from src.metrics import submission_probabilities
 from src.deployment import StudyPredictor
+from src.ensemble import combine_probabilities,normalized_weights
 
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--checkpoint',nargs='+',required=True)
     ap.add_argument('--tta',action='store_true')
+    ap.add_argument('--ensemble-weights',nargs='+',type=float)
     ap.add_argument('--calibration',help='Frozen prediction report; verifies model hashes and TTA')
     ap.add_argument('--root',default='raw_data/cxr_first')
     ap.add_argument('--samples',type=int,default=60)
@@ -39,10 +41,12 @@ def main():
         args.tta=frozen['arguments']['tta']
         args.aggregation=frozen['arguments']['aggregation']
         gates=np.array(frozen['validation']['gates'])
+        args.ensemble_weights=frozen['arguments'].get('ensemble_weights')
+    args.ensemble_weights=normalized_weights(args.ensemble_weights,len(args.checkpoint))
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     predictor=None;members=[]
     if args.study_level:
-        predictor=StudyPredictor(args.checkpoint,args.root,device,args.aggregation,args.tta,args.split)
+        predictor=StudyPredictor(args.checkpoint,args.root,device,args.aggregation,args.tta,args.split,args.ensemble_weights)
         members=predictor.members
     else:
         for checkpoint in args.checkpoint:
@@ -72,7 +76,7 @@ def main():
                         for model,member_ds in members:
                             x,_,_=member_ds[int(idx)]
                             member_predictions.append(forward_probabilities(model,x.unsqueeze(0),device,args.tta).cpu().numpy())
-                        p=submission_probabilities(np.mean(member_predictions,axis=0))
+                        p=submission_probabilities(combine_probabilities(member_predictions,args.ensemble_weights))
                     decision=p>=gates
                     if writer:
                         for k in range(10):writer.writerow([study,k+1,f'{p[k]:.15f}',f'{gates[k]:.15f}'])
@@ -85,6 +89,7 @@ def main():
             'torch':torch.__version__,'samples':len(averaged),'warmup':warmup,'rounds':rounds,'batch_size':1,'cache':False,'models':len(members),'tta':args.tta,
             'deterministic_inference':True,
             'checkpoint_sha256':checkpoint_hashes,'runtime':runtime_information(device),
+            'ensemble_weights':args.ensemble_weights,
             'data_root':str(Path(args.root).resolve()),
             'split':args.split,'dataset_csv_sha256':hashlib.sha256((Path(args.root)/(args.split+'.csv')).read_bytes()).hexdigest(),
             'test_csv_sha256':hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest() if args.split=='test' else None,

@@ -61,6 +61,7 @@ def main():
         assert latency['checkpoint_sha256']==model_hashes
         assert latency['checkpoint_bytes']==total and latency['models']==len(paths)
         assert latency['tta']==report['arguments']['tta']
+        assert latency.get('ensemble_weights')==report['arguments'].get('ensemble_weights')
         assert latency['runtime']==report['runtime']
         timing_split=latency.get('split','test')
         assert latency.get('dataset_csv_sha256',latency['test_csv_sha256'])==hashlib.sha256((Path(args.root)/(timing_split+'.csv')).read_bytes()).hexdigest()
@@ -70,6 +71,7 @@ def main():
         assert selection['selected']['checkpoint_sha256']==model_hashes
         assert selection['selected']['aggregation']==report['arguments']['aggregation']
         assert selection['selected']['tta']==report['arguments']['tta']
+        assert selection['selected'].get('ensemble_weights')==report['arguments'].get('ensemble_weights')
         assert abs(selection['selected']['metrics']['macro_auc']-report['validation']['macro_auc'])<=1e-8
         shutil.copy2(args.selection_report,out/'selection.json')
     (out/'checkpoint_info.json').write_text(json.dumps(checkpoint_info,indent=2),encoding='utf-8')

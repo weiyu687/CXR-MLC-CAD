@@ -31,6 +31,7 @@ def main():
     assert labels=={str(i):name for i,name in enumerate(LABELS,1)}
     info=json.loads((bundle/'checkpoint_info.json').read_text())
     report=json.loads((bundle/'report.json').read_text())
+    if 'ensemble_weights' in report['arguments']:assert 'src/ensemble.py' in manifest['files']
     assert report.get('deterministic_inference') is True,'Package must declare deterministic deployment settings'
     hashes=[hashlib.sha256((bundle/item['path']).read_bytes()).hexdigest() for item in info]
     assert hashes==report['checkpoint_sha256']
@@ -66,6 +67,7 @@ def main():
         assert latency['checkpoint_sha256']==hashes
         assert latency['checkpoint_bytes']==model_bytes and latency['models']==len(info)
         assert latency['runtime']==report['runtime'] and latency['tta']==report['arguments']['tta']
+        assert latency.get('ensemble_weights')==report['arguments'].get('ensemble_weights')
         assert latency['batch_size']==1 and latency['cache'] is False
         timing_split=latency.get('split','test')
         if timing_split=='test':assert latency['test_csv_sha256']==hashlib.sha256((Path(args.root)/'test.csv').read_bytes()).hexdigest()
@@ -73,6 +75,8 @@ def main():
             assert timing_split in ['train','valid'] and len(latency['dataset_csv_sha256'])==64
             result['latency_selection_split']=timing_split
         selection=json.loads((bundle/'selection.json').read_text(encoding='utf-8')) if (bundle/'selection.json').exists() else {}
+        if selection:
+            assert selection['selected'].get('ensemble_weights')==report['arguments'].get('ensemble_weights')
         statistic=selection.get('local_limit_statistic','max')
         limit=selection.get('local_sample_limit_ms',100)
         assert statistic in ['max','mean'] and 0<limit<=100
@@ -87,6 +91,7 @@ def main():
         assert reproduced_report['validation_recomputed'] is False,'Reproduction must use frozen calibration'
         for key in ['aggregation','tta','batch_size']:
             assert reproduced_report['arguments'][key]==report['arguments'][key]
+        assert reproduced_report['arguments'].get('ensemble_weights')==report['arguments'].get('ensemble_weights')
         for key,default in [('probability_decimals',None),('csv_decimal_places',8),('gate_policy','legacy_threshold_value')]:
             assert reproduced_report.get(key,default)==report.get(key,default)
         if report.get('runtime'):

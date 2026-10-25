@@ -8,11 +8,13 @@ from .data import Images,aggregate
 from .inference import load_deployed_model,forward_probabilities
 from .metrics import submission_probabilities
 from .preprocessing import decode_original_like_cache
+from .ensemble import combine_probabilities,normalized_weights
 
 class StudyPredictor:
-    def __init__(self,checkpoints,root,device,aggregation='frontal',tta=False,split='test'):
+    def __init__(self,checkpoints,root,device,aggregation='frontal',tta=False,split='test',ensemble_weights=None):
         self.root=Path(root);self.device=device;self.aggregation=aggregation;self.tta=tta;self.split=split
         self.members=[]
+        self.ensemble_weights=normalized_weights(ensemble_weights,len(checkpoints))
         for path in checkpoints:
             model,ck=load_deployed_model(path,device)
             ds=Images(root,'__no_cache__',split,ck['config']['size'],normalization=ck['config'].get('normalization','legacy'))
@@ -56,6 +58,6 @@ class StudyPredictor:
                     image.append(forward_probabilities(model,x.unsqueeze(0),self.device,self.tta).cpu().numpy()[0])
                 _,p,_=aggregate(small,np.stack(image),self.aggregation)
                 probs.append(p[0])
-            return study,submission_probabilities(np.mean(probs,axis=0))
+            return study,submission_probabilities(combine_probabilities(probs,self.ensemble_weights))
         finally:
             for image in decoded.values():image.close()

@@ -28,6 +28,7 @@ def main():
     ap.add_argument('--batch-size',type=int,default=64,help='Use 1 for exact alignment with the official serial cost protocol')
     ap.add_argument('--study-timing',action='store_true')
     ap.add_argument('--max-members',type=int,default=0,help='Limit equal-weight subsets before measured latency screening')
+    ap.add_argument('--weight-grid',choices=['equal','quarter'],default='quarter',help='Small fixed global weight grid; never class-specific fitting')
     ap.add_argument('--timing-root',help='Use a verified train/valid SSD copy to screen computation before final testing')
     ap.add_argument('--timing-split',choices=['train','valid','test'],default='test')
     args=ap.parse_args()
@@ -64,6 +65,7 @@ def main():
             exports.append(out/'predictions.npz')
         selection=work/f'ensembles_{int(tta)}.json'
         execute(['tools/select_ensemble.py','--runs',*runs,'--prediction-files',*exports,'--max-members',str(args.max_members),
+                 '--weight-grid',args.weight_grid,
                  '--root',root,'--out',selection],work/f'ensembles_{int(tta)}.log')
         candidates.extend(read(selection)['candidates'])
     candidates.sort(key=lambda c:(-c['metrics']['macro_auc'],-c['metrics']['macro_f1_tuned'],
@@ -71,13 +73,15 @@ def main():
     (work/'ranked_candidates.json').write_text(json.dumps(candidates,indent=2),encoding='utf-8')
     timing_cache={};selected=None;chosen_timing=None
     for candidate in candidates:
-        key=(tuple(candidate['checkpoints']),candidate['tta'],candidate['aggregation'] if args.study_timing else None)
+        key=(tuple(candidate['checkpoints']),candidate['tta'],candidate['aggregation'] if args.study_timing else None,
+             tuple(candidate['ensemble_weights']) if candidate.get('ensemble_weights') else None)
         if key not in timing_cache:
             path=work/f'latency_{len(timing_cache):02d}.json'
             command=['tools/benchmark.py','--checkpoint',*candidate['checkpoints'],'--root',args.timing_root or ssd,
                      '--split',args.timing_split,
                      '--samples',str(args.samples),'--out',path]
             if candidate['tta']:command.append('--tta')
+            if candidate.get('ensemble_weights'):command.extend(['--ensemble-weights',*map(str,candidate['ensemble_weights'])])
             if args.study_timing:command.extend(['--study-level','--aggregation',candidate['aggregation']])
             execute(command,path.with_suffix('.log'))
             timing_cache[key]=(path,read(path))
@@ -89,14 +93,16 @@ def main():
     evidence={'selected':selected,'local_latency_report':str(chosen_timing),
               'local_sample_limit_ms':args.latency_ms,'local_timing_samples':args.samples,
               'local_limit_statistic':args.latency_statistic,'latency_selection_split':args.timing_split,
-              'scope':'Validation-selected equal-weight subsets; local raw-image sample timing only',
+              'scope':'Validation-selected fixed global weighted subsets; local raw-image sample timing only',
               'T4_verified':False,'candidate_count':len(candidates)}
     evidence['max_ensemble_members']=args.max_members or len(runs)
+    evidence['weight_grid']=args.weight_grid
     evidence_path=work/'selected.json';evidence_path.write_text(json.dumps(evidence,indent=2),encoding='utf-8')
     predictions=work/'selected_predictions'
     command=['predict.py','--checkpoint',*selected['checkpoints'],'--aggregation',selected['aggregation'],
              '--root',root,'--cache',args.cache,'--out',predictions,'--workers','0','--batch-size',str(args.batch_size)]
     if selected['tta']:command.append('--tta')
+    if selected.get('ensemble_weights'):command.extend(['--ensemble-weights',*map(str,selected['ensemble_weights'])])
     execute(command,work/'selected_predictions.log')
     actual=read(predictions/'report.json')
     if abs(actual['validation']['macro_auc']-selected['metrics']['macro_auc'])>1e-8:

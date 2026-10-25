@@ -9,9 +9,11 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import numpy as np
 from src.data import frame,aggregate
 from src.metrics import evaluate
+from src.ensemble import combine_probabilities
 
-def select(runs, root, max_bytes=500_000_000, prediction_files=None, max_members=0):
+def select(runs, root, max_bytes=500_000_000, prediction_files=None, max_members=0, weight_grid='equal'):
     if max_members<0:raise ValueError('max_members must be nonnegative; 0 means unlimited')
+    if weight_grid not in ['equal','quarter']:raise ValueError('Unknown fixed weight grid')
     df=frame(root,'valid')
     modes=['mean','max','frontal','weighted']
     pooled={};checkpoint_paths=[];sizes=[]
@@ -50,17 +52,25 @@ def select(runs, root, max_bytes=500_000_000, prediction_files=None, max_members
         for subset in itertools.combinations(range(len(runs)),count):
             model_bytes=sum(sizes[i] for i in subset)
             if model_bytes>max_bytes:continue
+            weights=[None]
+            if weight_grid=='quarter' and count==2:
+                weights.extend([[.25,.75],[.75,.25]])
+            if weight_grid=='quarter' and count==3:
+                weights.extend([[.5 if j==i else .25 for j in range(3)] for i in range(3)])
             for mode in modes:
-                # Match predict.py: pool each member first, then average members.
-                p=np.mean([pooled[i,mode] for i in subset],axis=0)
-                metrics=evaluate(reference_y,p)
-                candidates.append({'checkpoints':[checkpoint_paths[i] for i in subset],
-                                   'aggregation':mode,'model_bytes':model_bytes,'metrics':metrics,
-                                   'tta':export_settings[1] if export_settings else False})
+                for weight in weights:
+                    # Match predict.py: pool each member first, then combine.
+                    p=combine_probabilities([pooled[i,mode] for i in subset],weight)
+                    metrics=evaluate(reference_y,p)
+                    candidates.append({'checkpoints':[checkpoint_paths[i] for i in subset],
+                                       'aggregation':mode,'model_bytes':model_bytes,'metrics':metrics,
+                                       'ensemble_weights':weight,
+                                       'tta':export_settings[1] if export_settings else False})
     if not candidates:raise ValueError('No candidate satisfies model size limit')
     candidates.sort(key=lambda x:(-x['metrics']['macro_auc'],-x['metrics']['macro_f1_tuned'],len(x['checkpoints']),x['model_bytes']))
     return {'selected':candidates[0],'candidates':candidates,
-            'scope':'Validation only; scores are model-selection estimates, not hidden-test results',
+            'scope':'Validation only; fixed global weight grid; scores are model-selection estimates, not hidden-test results',
+            'weight_grid':weight_grid,
             'latency_verified':False,'tta':export_settings[1] if export_settings else False,
             'batch_size':export_settings[0] if export_settings else None,
             'runtime':json.loads(export_settings[2]) if export_settings else None,
@@ -72,9 +82,10 @@ def main():
     ap.add_argument('--prediction-files',nargs='+',help='Deterministic predict.py --export-images NPZ files, one per run')
     ap.add_argument('--root',default='raw_data/cxr_first')
     ap.add_argument('--max-members',type=int,default=0,help='Limit ensemble size; 0 compares all subsets')
+    ap.add_argument('--weight-grid',choices=['equal','quarter'],default='equal')
     ap.add_argument('--out',default='outputs/ensemble_selection.json')
     args=ap.parse_args()
-    result=select(args.runs,args.root,prediction_files=args.prediction_files,max_members=args.max_members)
+    result=select(args.runs,args.root,prediction_files=args.prediction_files,max_members=args.max_members,weight_grid=args.weight_grid)
     Path(args.out).write_text(json.dumps(result,indent=2),encoding='utf-8')
     print(json.dumps(result['selected'],indent=2))
 if __name__=='__main__':main()
