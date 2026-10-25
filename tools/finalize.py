@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from tools.ensemble_presets import read_presets,evaluate_presets,append_weight_arguments
 
 def read(path):
     return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -29,6 +31,7 @@ def main():
     ap.add_argument('--study-timing',action='store_true')
     ap.add_argument('--max-members',type=int,default=0,help='Limit equal-weight subsets before measured latency screening')
     ap.add_argument('--weight-grid',choices=['equal','quarter'],default='quarter',help='Small fixed global weight grid; never class-specific fitting')
+    ap.add_argument('--ensemble-presets-registry',help='Explicit frozen ensemble specifications; re-evaluated using fresh exports')
     ap.add_argument('--timing-root',help='Use a verified train/valid SSD copy to screen computation before final testing')
     ap.add_argument('--timing-split',choices=['train','valid','test'],default='test')
     args=ap.parse_args()
@@ -51,7 +54,7 @@ def main():
         with Path(log).open('w',encoding='utf-8') as stream:
             result=subprocess.run([sys.executable,*map(str,arguments)],cwd=cwd,stdout=stream,stderr=subprocess.STDOUT)
         if result.returncode:raise RuntimeError(f'Stage failed ({result.returncode}); see {log}')
-    candidates=[]
+    candidates=[];export_index={}
     for tta in [False,True]:
         exports=[]
         for i,run in enumerate(runs):
@@ -63,25 +66,28 @@ def main():
             report=read(out/'report.json')
             if report['runtime']['device']!='cuda':raise RuntimeError('Final GPU export unexpectedly used CPU')
             exports.append(out/'predictions.npz')
+            export_index[report['checkpoint_sha256'][0],tta]=out/'predictions.npz'
         selection=work/f'ensembles_{int(tta)}.json'
         execute(['tools/select_ensemble.py','--runs',*runs,'--prediction-files',*exports,'--max-members',str(args.max_members),
                  '--weight-grid',args.weight_grid,
                  '--root',root,'--out',selection],work/f'ensembles_{int(tta)}.log')
         candidates.extend(read(selection)['candidates'])
+    if args.ensemble_presets_registry:
+        candidates.extend(evaluate_presets(read_presets(args.ensemble_presets_registry,root),export_index,root,args.max_members))
     candidates.sort(key=lambda c:(-c['metrics']['macro_auc'],-c['metrics']['macro_f1_tuned'],
                                   len(c['checkpoints'])*(2 if c['tta'] else 1),c['model_bytes']))
     (work/'ranked_candidates.json').write_text(json.dumps(candidates,indent=2),encoding='utf-8')
     timing_cache={};selected=None;chosen_timing=None
     for candidate in candidates:
         key=(tuple(candidate['checkpoints']),candidate['tta'],candidate['aggregation'] if args.study_timing else None,
-             tuple(candidate['ensemble_weights']) if candidate.get('ensemble_weights') else None)
+             json.dumps(candidate.get('ensemble_weights'),separators=(',',':')))
         if key not in timing_cache:
             path=work/f'latency_{len(timing_cache):02d}.json'
             command=['tools/benchmark.py','--checkpoint',*candidate['checkpoints'],'--root',args.timing_root or ssd,
                      '--split',args.timing_split,
                      '--samples',str(args.samples),'--out',path]
             if candidate['tta']:command.append('--tta')
-            if candidate.get('ensemble_weights'):command.extend(['--ensemble-weights',*map(str,candidate['ensemble_weights'])])
+            append_weight_arguments(command,candidate,work)
             if args.study_timing:command.extend(['--study-level','--aggregation',candidate['aggregation']])
             execute(command,path.with_suffix('.log'))
             timing_cache[key]=(path,read(path))
@@ -93,16 +99,17 @@ def main():
     evidence={'selected':selected,'local_latency_report':str(chosen_timing),
               'local_sample_limit_ms':args.latency_ms,'local_timing_samples':args.samples,
               'local_limit_statistic':args.latency_statistic,'latency_selection_split':args.timing_split,
-              'scope':'Validation-selected fixed global weighted subsets; local raw-image sample timing only',
+              'scope':'Validation-selected fixed weighted subsets and explicit frozen presets; local raw-image sample timing only',
               'T4_verified':False,'candidate_count':len(candidates)}
     evidence['max_ensemble_members']=args.max_members or len(runs)
     evidence['weight_grid']=args.weight_grid
+    evidence['ensemble_presets_registry']=args.ensemble_presets_registry
     evidence_path=work/'selected.json';evidence_path.write_text(json.dumps(evidence,indent=2),encoding='utf-8')
     predictions=work/'selected_predictions'
     command=['predict.py','--checkpoint',*selected['checkpoints'],'--aggregation',selected['aggregation'],
              '--root',root,'--cache',args.cache,'--out',predictions,'--workers','0','--batch-size',str(args.batch_size)]
     if selected['tta']:command.append('--tta')
-    if selected.get('ensemble_weights'):command.extend(['--ensemble-weights',*map(str,selected['ensemble_weights'])])
+    append_weight_arguments(command,selected,work)
     execute(command,work/'selected_predictions.log')
     actual=read(predictions/'report.json')
     if abs(actual['validation']['macro_auc']-selected['metrics']['macro_auc'])>1e-8:

@@ -110,9 +110,33 @@ def main():
         run(['tools/verify_bundle.py','--bundle',weighted_bundle,'--root',only_test,
              '--reproduced',weighted_raw/'submission.csv','--out',tmp/'weighted_verification.json'])
         assert json.loads((tmp/'weighted_verification.json').read_text())['max_probability_difference']==0
+        class_spec=tmp/'class_weights.json'
+        class_matrix=np.stack([np.linspace(.2,.8,10),np.linspace(.8,.2,10)]).tolist()
+        class_spec.write_text(json.dumps({'schema_version':1,'checkpoint_sha256':[
+            hashlib.sha256(checkpoint.read_bytes()).hexdigest(),hashlib.sha256(second_checkpoint.read_bytes()).hexdigest()],
+            'class_ids':list(range(1,11)),'weights':class_matrix}))
+        class_pred=tmp/'class_predictions';class_bundle=tmp/'class_bundle';class_raw=tmp/'class_raw'
+        run(['predict.py','--checkpoint',checkpoint,second_checkpoint,'--ensemble-weights-json',class_spec,
+             '--root',root,'--cache',cache,'--out',class_pred,'--workers','0','--batch-size','1'])
+        run(['tools/package.py','--checkpoint',checkpoint,second_checkpoint,'--predictions',class_pred,
+             '--root',root,'--out',class_bundle])
+        class_spec.unlink() # Frozen inference must not need the original authoring file.
+        run(['predict.py','--checkpoint','models/model_1.pt','models/model_2.pt','--calibration','report.json',
+             '--root',only_test,'--cache',tmp/'missing_cache','--out',class_raw,'--workers','0'],cwd=class_bundle)
+        run(['tools/verify_bundle.py','--bundle',class_bundle,'--root',only_test,
+             '--reproduced',class_raw/'submission.csv','--out',tmp/'class_verification.json'])
+        assert json.loads((tmp/'class_verification.json').read_text())['max_probability_difference']==0
+        pictures=tmp/'one_picture';warming=tmp/'one_warmup';pictures.mkdir();warming.mkdir()
+        shutil.copy2(root/'test'/'p1'/'s1'/'x1.jpg',pictures/'x1.jpg')
+        shutil.copy2(root/'test'/'p2'/'s2'/'x3.jpg',warming/'x3.jpg')
+        run([class_bundle/'cost.py',class_bundle/'submission.csv',pictures,warming,'--root',only_test,
+             '--bundle',class_bundle,'--samples','1','--warmup','1','--rounds','1','--out',tmp/'class_cost'])
+        cost=json.loads((tmp/'class_cost'/'cost_report.json').read_text())
+        assert cost['submission_predictions_match'] and cost['max_probability_difference']==0
+        assert not cost['official_sample_protocol'] and cost['ensemble_weights']==class_matrix
         frozen['checkpoint_sha256']=['0'*64];calibration.write_text(json.dumps(frozen))
         result=subprocess.run([sys.executable,'predict.py','--checkpoint',str(checkpoint),'--calibration',str(calibration),
                                '--root',str(root),'--out',str(tmp/'must_fail')],cwd=project,env=env,capture_output=True,text=True)
         assert result.returncode!=0 and 'Calibration does not match' in result.stderr
-    print('PASS: validation-only export without test access; legacy and half-step calibration; equal/weighted cached/raw package reproduction; identical CSV; runtime/model binding; test-only inference')
+    print('PASS: validation-only export; legacy calibration; equal/global/class-specific frozen package reproduction and cost agreement; no external weight JSON or validation labels needed; identical CSV/model binding')
 if __name__=='__main__':main()

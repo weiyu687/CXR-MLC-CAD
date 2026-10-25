@@ -16,13 +16,15 @@ from src.inference import configure_deterministic_inference,runtime_information
 from src.inference import load_deployed_model,forward_probabilities
 from src.metrics import submission_probabilities
 from src.deployment import StudyPredictor
-from src.ensemble import combine_probabilities,normalized_weights
+from src.ensemble import combine_probabilities,normalized_weights,read_weight_spec
 
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--checkpoint',nargs='+',required=True)
     ap.add_argument('--tta',action='store_true')
-    ap.add_argument('--ensemble-weights',nargs='+',type=float)
+    weight_args=ap.add_mutually_exclusive_group()
+    weight_args.add_argument('--ensemble-weights',nargs='+',type=float)
+    weight_args.add_argument('--ensemble-weights-json')
     ap.add_argument('--calibration',help='Frozen prediction report; verifies model hashes and TTA')
     ap.add_argument('--root',default='raw_data/cxr_first')
     ap.add_argument('--samples',type=int,default=60)
@@ -42,6 +44,9 @@ def main():
         args.aggregation=frozen['arguments']['aggregation']
         gates=np.array(frozen['validation']['gates'])
         args.ensemble_weights=frozen['arguments'].get('ensemble_weights')
+        args.ensemble_weights_json=None
+    elif args.ensemble_weights_json:
+        args.ensemble_weights=read_weight_spec(args.ensemble_weights_json,checkpoint_hashes)['weights']
     args.ensemble_weights=normalized_weights(args.ensemble_weights,len(args.checkpoint))
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     predictor=None;members=[]

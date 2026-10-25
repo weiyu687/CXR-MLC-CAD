@@ -35,6 +35,9 @@ def main():
     assert report.get('deterministic_inference') is True,'Package must declare deterministic deployment settings'
     hashes=[hashlib.sha256((bundle/item['path']).read_bytes()).hexdigest() for item in info]
     assert hashes==report['checkpoint_sha256']
+    if report.get('ensemble_weight_spec'):
+        spec=report['ensemble_weight_spec']
+        assert spec['checkpoint_sha256']==hashes and spec['weights']==report['arguments']['ensemble_weights']
     model_bytes=sum((bundle/item['path']).stat().st_size for item in info)
     assert model_bytes==manifest['model_bytes'] and model_bytes<=500_000_000
     deployment_bytes=model_bytes+sum((bundle/name).stat().st_size for name in ['report.json','labels.json','checkpoint_info.json'])

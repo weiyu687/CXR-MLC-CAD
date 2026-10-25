@@ -12,7 +12,7 @@ from src.model import build_model
 from src.metrics import evaluate,submission_probabilities,PROBABILITY_DECIMALS,CSV_DECIMAL_PLACES
 from train import predict
 from src.inference import configure_deterministic_inference,runtime_information
-from src.ensemble import combine_probabilities,normalized_weights
+from src.ensemble import combine_probabilities,normalized_weights,read_weight_spec
 
 def validate_submission(path, root):
     s=pd.read_csv(path)
@@ -36,7 +36,9 @@ def main():
     ap.add_argument('--batch-size',type=int,default=64)
     ap.add_argument('--workers',type=int,default=2)
     ap.add_argument('--tta',action='store_true')
-    ap.add_argument('--ensemble-weights',nargs='+',type=float,help='Fixed global positive weights, in checkpoint order')
+    weight_args=ap.add_mutually_exclusive_group()
+    weight_args.add_argument('--ensemble-weights',nargs='+',type=float,help='Fixed global positive weights, in checkpoint order')
+    weight_args.add_argument('--ensemble-weights-json',help='Hash-bound global/class-specific weight specification')
     ap.add_argument('--aggregation',choices=['mean','max','frontal','weighted'],default='mean')
     ap.add_argument('--calibration',help='Frozen report.json; enables inference with only test.csv/test images')
     ap.add_argument('--export-images',action='store_true',help='Export single-model deterministic per-image probabilities for model selection')
@@ -48,9 +50,10 @@ def main():
         raise ValueError('--validation-only cannot use test-only frozen calibration')
     if args.export_images and (frozen or len(args.checkpoint)!=1):
         raise ValueError('--export-images requires one checkpoint and an unfrozen validation run')
-    if args.export_images and args.ensemble_weights is not None:
+    if args.export_images and (args.ensemble_weights is not None or args.ensemble_weights_json):
         raise ValueError('--export-images exports unmixed single-model probabilities')
     checkpoint_hashes=[hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in args.checkpoint]
+    weight_spec=None
     if frozen:
         if frozen['checkpoint_sha256']!=checkpoint_hashes:
             raise ValueError('Calibration does not match checkpoint contents/order')
@@ -58,6 +61,11 @@ def main():
         args.aggregation=frozen['arguments']['aggregation']
         args.batch_size=frozen['arguments']['batch_size']
         args.ensemble_weights=frozen['arguments'].get('ensemble_weights')
+        weight_spec=frozen.get('ensemble_weight_spec')
+        args.ensemble_weights_json=None
+    elif args.ensemble_weights_json:
+        weight_spec=read_weight_spec(args.ensemble_weights_json,checkpoint_hashes)
+        args.ensemble_weights=weight_spec['weights']
     args.ensemble_weights=normalized_weights(args.ensemble_weights,len(args.checkpoint))
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     out=Path(args.out); out.mkdir(parents=True,exist_ok=True)
@@ -95,6 +103,7 @@ def main():
         s.to_csv(out/'submission.csv',index=False,encoding='utf-8',float_format='%.'+str(csv_decimal_places)+'f')
         submission_checks=validate_submission(out/'submission.csv',args.root)
     report={'validation':metrics,'submission':submission_checks,
+            'ensemble_weight_spec':weight_spec,
             'checkpoint_sha256':checkpoint_hashes,'arguments':vars(args),
             'deterministic_inference':True,
             'runtime':runtime,'runtime_matches_calibration':runtime==frozen.get('runtime') if frozen else None,

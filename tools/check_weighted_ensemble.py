@@ -1,9 +1,10 @@
 """Check a small global blend grid and compatibility with unweighted reports."""
 from pathlib import Path
+import json
 import tempfile
 import numpy as np
 import pandas as pd
-from src.ensemble import combine_probabilities,normalized_weights
+from src.ensemble import combine_probabilities,normalized_weights,read_weight_spec
 from tools.select_ensemble import select
 
 
@@ -14,6 +15,14 @@ def main():
     np.testing.assert_array_equal(combine_probabilities(values[:2],[1,3]),expected)
     canonical=normalized_weights([1,2,7],3)
     assert canonical==normalized_weights(canonical,3)
+    first=np.linspace(.2,.8,10);matrix=np.stack([first,1-first])
+    expected=np.empty_like(values[0],dtype=float)
+    for c in range(10):expected[:,c]=matrix[0,c]*values[0,:,c]+matrix[1,c]*values[1,:,c]
+    np.testing.assert_allclose(combine_probabilities(values[:2],matrix),expected,rtol=0,atol=1e-15)
+    np.testing.assert_allclose(combine_probabilities(values[:2,0],matrix),expected[0],rtol=0,atol=1e-15)
+    normalized=normalized_weights(matrix*3,2)
+    np.testing.assert_allclose(np.sum(normalized,axis=0),np.ones(10),rtol=0,atol=1e-15)
+    assert normalized==normalized_weights(normalized,2)
     for weights in [[0,1],[-1,2],[np.nan,1],[np.inf,1],[1],[1,2,3]]:
         try:
             normalized_weights(weights,2)
@@ -21,6 +30,20 @@ def main():
         except ValueError:pass
     with tempfile.TemporaryDirectory() as temporary:
         root=Path(temporary)
+        spec=root/'weights.json';hashes=['a'*64,'b'*64]
+        payload={'schema_version':1,'checkpoint_sha256':hashes,'class_ids':list(range(1,11)),'weights':matrix.tolist()}
+        spec.write_text(json.dumps(payload))
+        assert read_weight_spec(spec,hashes)['weights']==matrix.tolist()
+        for broken_hashes in [hashes[::-1],['0'*64,hashes[1]]]:
+            try:
+                read_weight_spec(spec,broken_hashes)
+                raise AssertionError('Weight/model order mismatch accepted')
+            except ValueError:pass
+        spec.write_text(json.dumps({**payload,'class_ids':list(range(10,0,-1))}))
+        try:
+            read_weight_spec(spec,hashes)
+            raise AssertionError('Wrong class order accepted')
+        except ValueError:pass
         pd.DataFrame({'Dicom_id':['a','b','c','d'],'Subject_id':['p1','p2','p3','p4'],
                       'Study_id':['s1','s2','s3','s4'],'ViewPosition':['PA']*4,
                       'Predict_class':['','','1;2;3;4;5;6;7;8;9;10','1;2;3;4;5;6;7;8;9;10']}).to_csv(root/'valid.csv',index=False)

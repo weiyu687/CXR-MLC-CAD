@@ -54,6 +54,9 @@ def load_extra_candidates(path, root):
             raise ValueError('Supplemental validation score differs from its report')
         runs.append(str(run))
     if len(set(runs))!=len(runs):raise ValueError('Duplicate supplemental candidate')
+    if payload.get('ensemble_presets'):
+        from tools.ensemble_presets import read_presets
+        read_presets(path,root)
     evidence={'path':str(Path(path).resolve()),'sha256':hashlib.sha256(raw).hexdigest(),'candidates':payload['candidates']}
     return runs,evidence,raw
 
@@ -241,14 +244,16 @@ def main():
             (work/'frozen_extra_candidates.json').write_bytes(raw)
         extra_runs=list(dict.fromkeys(str(Path(path).resolve()) for path in extra_runs))
         status('FINAL_CANDIDATES_FROZEN',extra_runs=extra_runs,extra_registry=extra_registry)
-        execute(['tools/finalize.py', '--runs', args.reference_full, refinement,
+        final_command=['tools/finalize.py', '--runs', args.reference_full, refinement,
                  efficientnet, efficientnet_448,
                  *[r['official_validation_candidate'] for r in records], *extra_runs,
                  '--max-members','3','--root', args.root,
                  '--cache', args.cache, '--ssd-root', args.ssd_root, '--timing-root', args.timing_root,
                  '--timing-split', 'valid', '--study-timing', '--batch-size', '1',
                  '--latency-statistic', 'mean', '--latency-ms', '100', '--samples', '100',
-                 '--work', work / 'final_selection', '--out', bundle], work / 'finalization.log', python=args.target_python)
+                 '--work', work / 'final_selection', '--out', bundle]
+        if args.extra_runs_manifest:final_command.extend(['--ensemble-presets-registry',work/'frozen_extra_candidates.json'])
+        execute(final_command, work / 'finalization.log', python=args.target_python)
         # A fixed random sample is used solely for the frozen final script's
         # reproduction/cost check. Its results never trigger reselection.
         import numpy as np

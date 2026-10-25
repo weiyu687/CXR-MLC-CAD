@@ -41,7 +41,7 @@ def main():
             Image.fromarray(((x*7+i*53)%256).astype(np.uint8)).save(path,quality=87)
         for mode in ['mean','max','frontal','weighted']:
             for tta in [False,True]:
-                weights=[.25,.5,.25] if tta else None
+                weights=np.stack([np.linspace(.125,.375,10),np.full(10,.25),np.linspace(.625,.375,10)]).tolist() if tta else None
                 with patch('src.deployment.load_deployed_model',side_effect=load):
                     predictor=StudyPredictor(['0','1','2'],root,device,mode,tta,ensemble_weights=weights)
                 with torch.inference_mode():
