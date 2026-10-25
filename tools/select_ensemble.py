@@ -10,7 +10,8 @@ import numpy as np
 from src.data import frame,aggregate
 from src.metrics import evaluate
 
-def select(runs, root, max_bytes=500_000_000, prediction_files=None):
+def select(runs, root, max_bytes=500_000_000, prediction_files=None, max_members=0):
+    if max_members<0:raise ValueError('max_members must be nonnegative; 0 means unlimited')
     df=frame(root,'valid')
     modes=['mean','max','frontal','weighted']
     pooled={};checkpoint_paths=[];sizes=[]
@@ -45,7 +46,7 @@ def select(runs, root, max_bytes=500_000_000, prediction_files=None):
                 raise ValueError('Validation study alignment differs')
             pooled[index,mode]=p
     candidates=[]
-    for count in range(1,len(runs)+1):
+    for count in range(1,min(len(runs),max_members or len(runs))+1):
         for subset in itertools.combinations(range(len(runs)),count):
             model_bytes=sum(sizes[i] for i in subset)
             if model_bytes>max_bytes:continue
@@ -70,9 +71,10 @@ def main():
     ap.add_argument('--runs',nargs='+',required=True)
     ap.add_argument('--prediction-files',nargs='+',help='Deterministic predict.py --export-images NPZ files, one per run')
     ap.add_argument('--root',default='raw_data/cxr_first')
+    ap.add_argument('--max-members',type=int,default=0,help='Limit ensemble size; 0 compares all subsets')
     ap.add_argument('--out',default='outputs/ensemble_selection.json')
     args=ap.parse_args()
-    result=select(args.runs,args.root,prediction_files=args.prediction_files)
+    result=select(args.runs,args.root,prediction_files=args.prediction_files,max_members=args.max_members)
     Path(args.out).write_text(json.dumps(result,indent=2),encoding='utf-8')
     print(json.dumps(result['selected'],indent=2))
 if __name__=='__main__':main()

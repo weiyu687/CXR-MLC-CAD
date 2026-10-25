@@ -27,6 +27,7 @@ def main():
     ap.add_argument('--latency-statistic',choices=['max','mean'],default='max')
     ap.add_argument('--batch-size',type=int,default=64,help='Use 1 for exact alignment with the official serial cost protocol')
     ap.add_argument('--study-timing',action='store_true')
+    ap.add_argument('--max-members',type=int,default=0,help='Limit equal-weight subsets before measured latency screening')
     ap.add_argument('--timing-root',help='Use a verified train/valid SSD copy to screen computation before final testing')
     ap.add_argument('--timing-split',choices=['train','valid','test'],default='test')
     args=ap.parse_args()
@@ -62,7 +63,7 @@ def main():
             if report['runtime']['device']!='cuda':raise RuntimeError('Final GPU export unexpectedly used CPU')
             exports.append(out/'predictions.npz')
         selection=work/f'ensembles_{int(tta)}.json'
-        execute(['tools/select_ensemble.py','--runs',*runs,'--prediction-files',*exports,
+        execute(['tools/select_ensemble.py','--runs',*runs,'--prediction-files',*exports,'--max-members',str(args.max_members),
                  '--root',root,'--out',selection],work/f'ensembles_{int(tta)}.log')
         candidates.extend(read(selection)['candidates'])
     candidates.sort(key=lambda c:(-c['metrics']['macro_auc'],-c['metrics']['macro_f1_tuned'],
@@ -90,6 +91,7 @@ def main():
               'local_limit_statistic':args.latency_statistic,'latency_selection_split':args.timing_split,
               'scope':'Validation-selected equal-weight subsets; local raw-image sample timing only',
               'T4_verified':False,'candidate_count':len(candidates)}
+    evidence['max_ensemble_members']=args.max_members or len(runs)
     evidence_path=work/'selected.json';evidence_path.write_text(json.dumps(evidence,indent=2),encoding='utf-8')
     predictions=work/'selected_predictions'
     command=['predict.py','--checkpoint',*selected['checkpoints'],'--aggregation',selected['aggregation'],

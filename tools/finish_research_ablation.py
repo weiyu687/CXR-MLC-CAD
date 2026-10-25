@@ -1,8 +1,8 @@
 """Finish the finite research experiment queue and prepare a reviewable bundle.
 
 No scheduling or website submission. Existing experiments and bundles are never
-overwritten. A prepared bundle still needs declaration-workbook and visual QA
-before the overall competition deliverable is considered complete.
+overwritten. The updated user objective prioritizes official-valid metrics and
+a reproducible submission CSV; final results still need a completion audit.
 """
 import argparse
 import ctypes
@@ -94,8 +94,10 @@ def main():
     parser.add_argument('--cache', required=True)
     parser.add_argument('--ssd-root', required=True)
     parser.add_argument('--timing-root', required=True, help='Original valid images; computation screened before final test')
-    parser.add_argument('--work', default='outputs/research_delivery_s2038')
+    parser.add_argument('--work', default='outputs/research_delivery_valid_s2038')
     parser.add_argument('--refinement', default='outputs/research_refinement_s2038')
+    parser.add_argument('--efficientnet', default='outputs/effv2s_research_full_s2039')
+    parser.add_argument('--efficientnet-448', default='outputs/effv2s_research_448_s2040')
     parser.add_argument('--out', default='submission/round2_bundle')
     parser.add_argument('--wait-process', type=int)
     parser.add_argument('--execute', action='store_true')
@@ -108,8 +110,10 @@ def main():
     os.chdir(project)
     work = Path(args.work).resolve()
     refinement = Path(args.refinement).resolve()
+    efficientnet = Path(args.efficientnet).resolve()
+    efficientnet_448 = Path(args.efficientnet_448).resolve()
     bundle = Path(args.out).resolve()
-    for path in [work, refinement, bundle]:
+    for path in [work, refinement, efficientnet, efficientnet_448, bundle]:
         if path.exists():
             raise FileExistsError('Existing output preserved: ' + str(path))
     if len(set(map(str, map(Path, args.runs)))) != len(args.runs):
@@ -141,16 +145,25 @@ def main():
                  '--root', args.root, '--cache', args.cache, '--out', comparison, '--bootstrap', '1000'],
                 work / 'patient_comparison.log', python=args.target_python)
         compared = read(comparison / 'comparison.json')
-        # Restrict recipe choice to the three planned DenseNet candidates.
-        # The prior ResNet is reported as an independently partitioned reference.
-        chosen = max(records, key=lambda record: compared['models'][Path(record['run']).name]['macro_auc'])
+        # The user updated the goal to prioritize official validation metrics.
+        # Keep original holdout checkpoints for the controlled comparison, and
+        # explicitly select separate EMA snapshots by official validation here.
+        for record in records:
+            candidate=Path(record['run'])/'official_valid_selected'
+            candidate_metrics=read(candidate/'metrics.json')
+            history=[json.loads(line) for line in (Path(record['run'])/'history.jsonl').read_text(encoding='utf-8').splitlines()]
+            if abs(candidate_metrics['macro_auc']-max(r['macro_auc'] for r in history))>1e-12:
+                raise ValueError('Archived official-validation peak is missing: '+str(candidate))
+            record['official_validation_candidate']=str(candidate)
+            record['official_validation_peak']=candidate_metrics['macro_auc']
+        chosen = max(records, key=lambda record: record['official_validation_peak'])
         choice = {'selected': chosen, 'patient_comparison': compared,
-                  'selection_scope': 'Highest point estimate among the predefined DenseNet recipes on the fixed train-patient holdout; confidence intervals are descriptive',
+                  'selection_scope': 'Highest official-valid Macro-AUC among separate EMA snapshots of the predefined DenseNet recipes; repeated-validation model selection estimate',
                   'full_refinement_plan': {'size': 384, 'epochs': 6, 'patience': 3, 'seed': 2038, 'lr': 3e-5},
                   'full_refinement_invalidates_old_patient_holdout_independence': True}
         (work / 'recipe_choice.json').write_text(json.dumps(choice, indent=2), encoding='utf-8')
         config = chosen['config']
-        command = ['train.py', '--model', config['model'], '--init', Path(chosen['run']) / 'best.pt',
+        command = ['train.py', '--model', config['model'], '--init', Path(chosen['official_validation_candidate']) / 'best.pt',
                    '--size', '384', '--batch-size', '24', '--epochs', '6', '--patience', '3',
                    '--lr', '0.00003', '--head-lr-mult', '1', '--weight-decay', '0.0001',
                    '--loss', config['loss'], '--frontal-training', '--regularize', '--horizontal-flip',
@@ -160,7 +173,27 @@ def main():
             command.append('--positive-weight')
         execute(command, work / 'refinement.log')
         refined = completed_training(refinement)
-        execute(['tools/finalize.py', '--runs', args.reference_full, refinement, '--root', args.root,
+        # Add an audited, structurally different CNN family after selecting a
+        # loss recipe. Both runs use official train only; valid selects epochs.
+        common=['--model','tv_efficientnet_v2_s','--loss',config['loss'],
+                '--frontal-training','--regularize','--horizontal-flip','--mixup','0',
+                '--weight-decay','0.0001','--selection-aggregation','frontal',
+                '--workers','2','--root',args.root,'--cache',args.cache]
+        if config['positive_weight']:
+            common.append('--positive-weight')
+        execute(['train.py',*common,'--pretrained','--freeze-backbone-epochs','2',
+                 '--size','320','--batch-size','24','--epochs','12','--patience','4',
+                 '--lr','0.00015','--head-lr-mult','5','--seed','2039','--out',efficientnet],
+                work/'efficientnet.log')
+        efficient_record=completed_training(efficientnet)
+        execute(['train.py',*common,'--init',efficientnet/'best.pt',
+                 '--size','448','--batch-size','16','--epochs','6','--patience','3',
+                 '--lr','0.00003','--head-lr-mult','1','--seed','2040','--out',efficientnet_448],
+                work/'efficientnet_448.log')
+        efficient_448_record=completed_training(efficientnet_448)
+        execute(['tools/finalize.py', '--runs', args.reference_full, refinement,
+                 efficientnet, efficientnet_448,
+                 *[r['official_validation_candidate'] for r in records], '--max-members','3','--root', args.root,
                  '--cache', args.cache, '--ssd-root', args.ssd_root, '--timing-root', args.timing_root,
                  '--timing-split', 'valid', '--study-timing', '--batch-size', '1',
                  '--latency-statistic', 'mean', '--latency-ms', '100', '--samples', '100',
@@ -190,12 +223,12 @@ def main():
         if not cost['official_sample_protocol'] or not cost['submission_predictions_match'] or not cost['local_mean_limit_passed']:
             raise RuntimeError('Frozen final cost/reproduction check failed; preserve evidence without test-based model reselection')
         summary = {'bundle': str(bundle), 'recipe_choice': str(work / 'recipe_choice.json'),
-                   'refinement': refined, 'finalization': read(work / 'final_selection' / 'complete.json'),
+                   'refinement': refined, 'efficientnet':efficient_record,'efficientnet_448':efficient_448_record,
+                   'finalization': read(work / 'final_selection' / 'complete.json'),
                    'cost': cost, 'official_website_submission_performed': False,
                    'overall_deliverable_complete': False,
-                   'remaining': ['Create accurate declaration workbook and inspect rendered sheets',
-                                 'Add cost/declaration evidence, refresh manifest, verify and archive final materials',
-                                 'Review and publish aggregate experiment results; T4 timing remains unverified locally']}
+                   'remaining': ['Review final validation gain and patient comparisons',
+                                 'Provide verified submission CSV and publish aggregate results; T4 timing remains unverified locally']}
         (work / 'prepared.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
         status('PREPARED_FOR_MATERIAL_REVIEW', bundle=str(bundle), overall_deliverable_complete=False)
     except Exception as error:

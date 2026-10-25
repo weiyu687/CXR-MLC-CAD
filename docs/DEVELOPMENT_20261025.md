@@ -56,19 +56,21 @@ python -m tools.compare_patient_holdout --runs outputs/research_ablation_s2036/b
 
 新文件夹须完成 PyTorch 2.10、batch=1 的最终推理、原图独立复现、大小核验及包含写出的计时。官网 10 月 23 日 PDF 链接已于 10 月 25 日重新核对。T4 / CUDA 12.8 仍需主办方复测。第一轮交付包保持不变，不执行网站提交。
 
-## 有限后台衔接
+## 有限后台衔接（按更新后的验证指标目标调整）
 
 `tools/finish_research_ablation.py` 默认只打印参数，`--execute` 执行一次有限流程，可用 `--wait-process <明确的训练队列PID>` 等待本机 Windows 队列成功结束。它不会修改、终止其他进程，也不是定时任务。若队列失败、任一训练尚未达到预定轮数/早停条件、checkpoint 与历史不符，立即停止并保留证据。
 
 预定步骤：
 
-1. 三组完整训练后，以同一患者划分上的既有 ImageNet ResNet50 作为报告参考，重新导出并做 1000 次患者配对 bootstrap。三组 DenseNet 中按留出点估计选一个配方，置信区间仅作不确定性说明。
-2. 该 DenseNet 在全 train 上做最多 6 轮、patience=3 的 384 输入微调，lr=3e-5、seed=2038；损失配方沿用获选组，不做 Mixup。进入此步后原患者留出不再独立，checkpoint 改由官方 valid 选择。这是预先固定的微调计划，不宣称分辨率变化已通过单因素验证。
-3. 仅比较该完整 DenseNet 与已完成的 ImageNet ResNet50 全 train 模型，验证选择及耗时筛查通过后，生成新的 `submission/round2_bundle` 并在 PyTorch 2.10 batch=1 独立读取全部原图复现。
-4. 冻结模型后，固定随机种子抽取 5 张预热与 100 张测试图，仅检查 cost.py 的三轮结果复现与写出耗时。此结果不触发测试集驱动的模型重选。
+1. 原三组的 `best.pt` 继续按固定患者留出保存，完成后与既有 ImageNet ResNet50 做 1000 次患者配对 bootstrap。这部分用于对照报告。
+2. **用户将目标更新为“尽可能提升模型在验证集上的指标，然后给出提交文件”。** 另行保存 `official_valid_selected/best.pt`，按官方 valid Macro-AUC 选权重，不替换患者留出 `best.pt`。已运行的第一组由只读 CPU 观察程序提取已落盘的 EMA，后续训练直接保存。保存逻辑会检查一基/零基轮次对应，避免误用 raw 参数或将新指标绑定旧权重。
+3. 三组 DenseNet 中按官方验证峰值选一个配方，在全 train 上做最多 6 轮、patience=3 的 384 输入微调，lr=3e-5、seed=2038；不做 Mixup。进入此步后原患者留出不再独立。这是固定微调计划，不宣称分辨率变化已通过单因素验证。
+4. 加入已审计的 ImageNet EfficientNetV2-S，增加骨干结构差异：先在全 train 做 320 输入、最多 12 轮、2 轮分类头预热、patience=4、lr=1.5e-4、seed=2039，再做真实 448 输入的最多 6 轮微调、patience=3、lr=3e-5、seed=2040。损失配方沿用获选 DenseNet；官方 valid 选轮次。448 来自原有 448 缓存，未将其冒充更高原始分辨率。
+5. 在 PyTorch 2.10 batch=1 重新导出以上候选及已完成 ResNet50 的验证概率。比较最多 3 个模型的等权子集、4 种检查聚合、有/无翻转 TTA，按 Macro-AUC、再 Macro-F1 排名，并在 valid 原图上筛查耗时。选定后才生成新的 `submission/round2_bundle`，独立读取全部测试原图复现。
+6. 冻结模型后，固定随机种子抽取 5 张预热与 100 张测试图，仅检查 cost.py 的三轮结果复现与写出耗时。此结果不触发测试集驱动的模型重选。
 
-本地状态文件 `outputs/research_delivery_s2038/status.json` 记录进度与控制器源码提交，阶段日志位于同一目录。成功生成推理包后的阶段为 **PREPARED_FOR_MATERIAL_REVIEW**：仍需准确制作声明工作簿、人工检查渲染图、补入测时证据、更新清单并打包归档，不能将后台启动或这个准备阶段说成所有参赛交付已完成。未训练的 query 模型不进入该有限流程。
+本地状态文件 `outputs/research_delivery_valid_s2038/status.json` 记录进度与控制器源码提交，阶段日志位于同一目录。成功生成推理包后的阶段名保留 **PREPARED_FOR_MATERIAL_REVIEW**：还需核对实际验证提升、患者对比和完整 CSV 后才交付。此阶段本身不代表用户目标已完成。未训练的 query 模型不进入该有限流程。
 
 `tools/check_research_finisher.py` 已用临时合成记录检查提前中断拒绝、早停/轮数完成判定、权重与历史绑定，以及自建子进程成功/失败退出码处理。
 
-本轮已实际启动后台衔接程序，当前等待训练队列成功退出。该程序不会自动生成或发布未经人工核验的 Excel 声明，也不会把“推理包已准备”写成参赛材料全部完成。
+目标更新后仅替换了处于等待状态的衔接程序，没有中止或重启 DenseNet 训练。官方验证峰值单独保存和扩展训练均为更新后的计划；Excel 声明不作为本次优先交付 CSV 的前置工作。反复官方验证选择会产生乐观估计，验证分数不代表未知榜单分数。

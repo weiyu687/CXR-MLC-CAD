@@ -30,6 +30,9 @@ def main():
         restricted=select(runs,root,max_bytes=10)
         assert len(restricted['candidates'])==8
         assert all(len(x['checkpoints'])==1 for x in restricted['candidates'])
+        member_limited=select(runs,root,max_members=1)
+        assert len(member_limited['candidates'])==8
+        assert all(len(x['checkpoints'])==1 for x in member_limited['candidates'])
         assert len(result['selected']['checkpoints'])==1
         files=[]
         for run in runs:

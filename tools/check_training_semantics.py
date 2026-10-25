@@ -1,8 +1,11 @@
 """Check loss interpolation and frozen-backbone buffers on a synthetic model."""
 import copy
+import json
+from pathlib import Path
+import tempfile
 import torch
 from src.model import AsymmetricLoss
-from src.training import configure_train_stage, mixed_target_loss
+from src.training import configure_train_stage, mixed_target_loss, save_validation_candidate
 
 
 class ToyModel(torch.nn.Module):
@@ -58,7 +61,23 @@ def main():
     optimizer.zero_grad();model(x).square().mean().backward();optimizer.step()
     assert not torch.equal(model.backbone[0].weight,initial['backbone.0.weight'])
     assert model.backbone[1].num_batches_tracked==1
+    with tempfile.TemporaryDirectory() as temporary:
+        record={'epoch':2,'macro_auc':.8,'auc':[.8]*10,'macro_f1_05':.4,'macro_f1_tuned':.5,
+                'gates':[.5]*10,'aggregation':'frontal','holdout':{'macro_auc':.81},'selection_score':.81}
+        checkpoint={'epoch':1,'config':{'model':'toy'},'state_dict':{'weight':torch.tensor([1.])},
+                    'ema':{'weight':torch.tensor([2.])}}
+        assert save_validation_candidate(temporary,checkpoint,record,resume_state=True)
+        saved=torch.load(Path(temporary)/'official_valid_selected'/'best.pt',weights_only=False)
+        assert saved['epoch']==2 and saved['state_dict']['weight'].item()==2
+        assert saved['selection_basis']=='official_valid_macro_auc'
+        assert not save_validation_candidate(temporary,checkpoint,{**record,'macro_auc':.79},resume_state=True)
+        assert json.loads((Path(temporary)/'official_valid_selected'/'metrics.json').read_text())['macro_auc']==.8
+        try:
+            save_validation_candidate(temporary,checkpoint,{**record,'epoch':3},resume_state=True)
+            raise AssertionError('Mismatched checkpoint/validation epoch accepted')
+        except ValueError:pass
     print('PASS: BCE equivalence; ASL hard-label loss/gradient semantics; warmup freezes parameters, BN buffers and dropout; full stage restores original trainability')
+    print('PASS: separate official-validation peaks use EMA, translate resume epoch correctly, reject stale scores and mismatched epochs')
 
 
 if __name__=='__main__':main()

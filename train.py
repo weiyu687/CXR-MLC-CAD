@@ -15,7 +15,7 @@ from src.data import Images, aggregate
 from src.model import build_model, AsymmetricLoss
 from src.metrics import evaluate
 from src.inference import forward_probabilities
-from src.training import configure_train_stage, mixed_target_loss
+from src.training import configure_train_stage, mixed_target_loss, save_validation_candidate
 
 @torch.inference_mode()
 def predict(model, loader, device, tta=False):
@@ -224,6 +224,8 @@ def main():
                 'holdout':holdout_metrics,'selection_score':selection_score,**metrics}
         with (out/'history.jsonl').open('a',encoding='utf-8') as f: f.write(json.dumps(record)+'\n')
         print(json.dumps(record),flush=True)
+        save_validation_candidate(out, {'state_dict':ema.state_dict(),'epoch':epoch+1,
+                                        'config':vars(args),'provenance':provenance}, record)
         if selection_score>best:
             best=selection_score
             stale_epochs=0
