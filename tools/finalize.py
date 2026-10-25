@@ -12,6 +12,7 @@ import subprocess
 import sys
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from tools.ensemble_presets import read_presets,evaluate_presets,append_weight_arguments
+from tools.gpu_idle import wait_for_idle_gpu
 
 def read(path):
     return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -32,6 +33,7 @@ def main():
     ap.add_argument('--max-members',type=int,default=0,help='Limit equal-weight subsets before measured latency screening')
     ap.add_argument('--weight-grid',choices=['equal','quarter'],default='quarter',help='Small fixed global weight grid; never class-specific fitting')
     ap.add_argument('--ensemble-presets-registry',help='Explicit frozen ensemble specifications; re-evaluated using fresh exports')
+    ap.add_argument('--allow-busy-gpu',action='store_true',help='Explicitly bypass the default low-load preflight before validation timing')
     ap.add_argument('--timing-root',help='Use a verified train/valid SSD copy to screen computation before final testing')
     ap.add_argument('--timing-split',choices=['train','valid','test'],default='test')
     args=ap.parse_args()
@@ -83,6 +85,11 @@ def main():
              json.dumps(candidate.get('ensemble_weights'),separators=(',',':')))
         if key not in timing_cache:
             path=work/f'latency_{len(timing_cache):02d}.json'
+            idle=None
+            if not args.allow_busy_gpu:
+                idle=wait_for_idle_gpu(path.with_suffix('.gpu_load.jsonl'),
+                    on_wait=lambda state:print(json.dumps(state),flush=True))
+                print(json.dumps({'stage':'GPU_LOW_LOAD_CONFIRMED','evidence':idle}),flush=True)
             command=['tools/benchmark.py','--checkpoint',*candidate['checkpoints'],'--root',args.timing_root or ssd,
                      '--split',args.timing_split,
                      '--samples',str(args.samples),'--out',path]
@@ -90,7 +97,9 @@ def main():
             append_weight_arguments(command,candidate,work)
             if args.study_timing:command.extend(['--study-level','--aggregation',candidate['aggregation']])
             execute(command,path.with_suffix('.log'))
-            timing_cache[key]=(path,read(path))
+            timing=read(path);timing['gpu_low_load_preflight']=idle
+            path.write_text(json.dumps(timing,indent=2),encoding='utf-8')
+            timing_cache[key]=(path,timing)
         path,timing=timing_cache[key]
         if timing[args.latency_statistic+'_ms']<=args.latency_ms:
             selected=dict(candidate);selected['checkpoint_sha256']=timing['checkpoint_sha256']
