@@ -40,13 +40,16 @@ def main():
     ap.add_argument('--workers', type=int, default=2)
     ap.add_argument('--lr', type=float, default=0.001)
     ap.add_argument('--seed', type=int, default=42)
-    ap.add_argument('--loss', choices=['bce','asl'], default='bce')
+    ap.add_argument('--loss', choices=['bce','asl','chexfusion_asl'], default='bce')
     ap.add_argument('--selection-aggregation',choices=['mean','max','frontal','weighted','auto'],default='mean')
+    ap.add_argument('--holdout-aggregation', choices=['mean','max','frontal','weighted'], default='frontal')
     ap.add_argument('--resume')
     ap.add_argument('--init',help='Initialize from an existing competition checkpoint')
-    ap.add_argument('--pretrained',action='store_true',help='Audited torchvision ImageNet weights permitted by official PDF article 1')
+    ap.add_argument('--pretrained',action='store_true',help='Audited non-medical ImageNet weights permitted by official PDF article 1')
     ap.add_argument('--normalization',choices=['legacy','imagenet'],default='legacy')
     ap.add_argument('--frontal-training',action='store_true')
+    ap.add_argument('--image-training', action='store_true', help='Visit every training image, including lateral views, each epoch')
+    ap.add_argument('--augmentation', choices=['legacy','chexfusion'], default='legacy')
     ap.add_argument('--regularize',action='store_true')
     ap.add_argument('--mixup',type=float,default=0.)
     ap.add_argument('--mixup-objective',choices=['hard_loss','soft_target'],default='hard_loss',
@@ -67,6 +70,10 @@ def main():
     ap.add_argument('--cuda-memory-fraction',type=float,default=1.,help='Per-process CUDA allocator ceiling')
     ap.add_argument('--horizontal-flip',action=argparse.BooleanOptionalAction,default=True,help='Training only; labels have no side-specific classes')
     args = ap.parse_args()
+    if args.image_training and args.frontal_training:
+        raise ValueError('Image training visits all views; do not combine with frontal-only study sampling')
+    if args.augmentation == 'chexfusion' and (args.regularize or not args.horizontal_flip):
+        raise ValueError('Use the published augmentation as a complete sequence')
     if args.pretrained:
         if args.init or args.resume:raise ValueError('Choose pretrained initialization or a competition checkpoint')
         args.normalization='imagenet'
@@ -117,9 +124,14 @@ def main():
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     (out/'config.json').write_text(json.dumps(vars(args),indent=2),encoding='utf-8')
     (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
-    train = Images(args.root,args.cache,'train',args.size,train=True,
+    train = Images(args.root,args.cache,'train',args.size,train=True,study_sampling=not args.image_training,
                    frontal_training=args.frontal_training,regularize=args.regularize,normalization=args.normalization,
                    horizontal_flip=args.horizontal_flip)
+    if args.augmentation == 'chexfusion':
+        if args.normalization != 'imagenet':
+            raise ValueError('The CheXFusion augmentation uses ImageNet normalization')
+        from src.paper_augmentation import CheXFusionAugment
+        train.transform = CheXFusionAugment(args.size)
     valid = Images(args.root,args.cache,'valid',args.size,normalization=args.normalization)
     holdout=None
     if args.patient_holdout:
@@ -130,11 +142,16 @@ def main():
         held=set(rng.choice(patients,int(len(patients)*args.patient_holdout),replace=False))
         holdout=Images(args.root,args.cache,'train',args.size,normalization=args.normalization)
         holdout.df=holdout.df[holdout.df.Subject_id.isin(held)].reset_index(drop=True)
-        train.groups=[g for g in train.groups if train.df.iloc[g[0]].Subject_id not in held]
+        if args.image_training:
+            train.df=train.df[~train.df.Subject_id.isin(held)].reset_index(drop=True)
+            train.groups=[g.index.tolist() for _,g in train.df.groupby('Study_id',sort=False)]
+        else:
+            train.groups=[g for g in train.groups if train.df.iloc[g[0]].Subject_id not in held]
         assert not set(train.df.iloc[[g[0] for g in train.groups]].Subject_id)&set(holdout.df.Subject_id)
         (out/'holdout_patients.json').write_text(json.dumps(sorted(held)),encoding='utf-8')
     kwargs = dict(batch_size=args.batch_size,num_workers=args.workers,pin_memory=device.type=='cuda',persistent_workers=args.workers>0)
-    tl = DataLoader(train,shuffle=True,drop_last=True,**kwargs)
+    training_random = {'generator': torch.Generator().manual_seed(args.seed+731)} if args.augmentation=='chexfusion' else {}
+    tl = DataLoader(train,shuffle=True,drop_last=True,**training_random,**kwargs)
     vl = DataLoader(valid,shuffle=False,**kwargs)
     hl=DataLoader(holdout,shuffle=False,**kwargs) if holdout is not None else None
     model = build_model(args.model,pretrained=args.pretrained).to(device, memory_format=torch.channels_last)
@@ -161,9 +178,22 @@ def main():
     optimizer = torch.optim.AdamW(parameters,lr=args.lr,weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler('cuda', enabled=device.type=='cuda')
     criterion = AsymmetricLoss() if args.loss=='asl' else torch.nn.BCEWithLogitsLoss()
+    if args.loss == 'chexfusion_asl':
+        from src.paper_losses import CheXFusionWeightedASL
+        targets = np.stack(train.df.target if args.image_training else train.df.iloc[[g[0] for g in train.groups]].target)
+        criterion = CheXFusionWeightedASL(targets.sum(0), len(targets)).to(device)
+        provenance['loss_reference'] = {
+            'paper': 'https://arxiv.org/abs/2308.03968',
+            'author_file': 'https://github.com/dongkyunk/CheXFusion/blob/main/model/loss.py',
+            'class_counts': targets.sum(0).tolist(), 'total_count': len(targets),
+            'frequency_unit': 'train images' if args.image_training else 'train studies',
+            'gamma_positive': 1, 'gamma_negative': 4, 'clip': .05,
+            'focusing_in_autograd': True, 'reduction': 'mean',
+            'heldout_patients_excluded': holdout is not None}
+        (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     if args.positive_weight:
         if args.loss!='bce':raise ValueError('Positive weighting requires BCE')
-        targets=np.stack(train.df.iloc[[g[0] for g in train.groups]].target)
+        targets=np.stack(train.df.target if args.image_training else train.df.iloc[[g[0] for g in train.groups]].target)
         pos=targets.sum(0)
         weights=np.sqrt((len(targets)-pos)/np.maximum(pos,1)).clip(1,5)
         criterion=torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weights,dtype=torch.float32,device=device))
@@ -183,7 +213,9 @@ def main():
         stale_epochs=ck.get('stale_epochs',0)
         random.setstate(ck['random']); np.random.set_state(ck['numpy']); torch.set_rng_state(ck['torch'])
         if 'cuda_rng' in ck and device.type=='cuda': torch.cuda.set_rng_state_all(ck['cuda_rng'])
-    print(json.dumps({'device':str(device),'model':args.model,'train_studies':len(train),'valid_images':len(valid),'parameters':sum(p.numel() for p in model.parameters())}),flush=True)
+    print(json.dumps({'device':str(device),'model':args.model,'train_examples':len(train),
+        'training_unit':'image' if args.image_training else 'study','train_studies':len(train.groups),
+        'valid_images':len(valid),'parameters':sum(p.numel() for p in model.parameters())}),flush=True)
     for epoch in range(start,args.epochs):
         t0=time.time(); total=0
         if device.type=='cuda':torch.cuda.reset_peak_memory_stats(device)
@@ -231,7 +263,7 @@ def main():
         holdout_metrics=None
         if hl is not None:
             hp=predict(ema,hl,device)
-            _,hprob,hy=aggregate(holdout.df,hp,'frontal')
+            _,hprob,hy=aggregate(holdout.df,hp,args.holdout_aggregation)
             holdout_metrics=evaluate(hy,hprob)
         # A fixed patient holdout selects checkpoints without repeated official-valid tuning.
         selection_score=holdout_metrics['macro_auc'] if holdout_metrics else metrics['macro_auc']

@@ -1,0 +1,3 @@
+# Optional plotting dependency for tools.review_long_training.
+# Install after the verified competition runtime; inference does not import it.
+matplotlib==3.10.7

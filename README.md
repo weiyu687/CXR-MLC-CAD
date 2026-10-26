@@ -1,8 +1,12 @@
 # CXR-MLC-CAD
 
-**已验证交付（2026-10-26）**：新文件在 `submission/round2_bundle/submission.csv`，完整包为 `submission/CXR-MLC-CAD_round2_20261026.zip`。统一 PyTorch 2.10、batch=1 下，DenseNet121 + EfficientNetV2-S + ResNet18 的固定逐类融合验证 Macro-AUC **0.811122**、调阈值 Macro-F1 **0.496667**；旧交付同条件 AUC **0.788140**。全测试原图复现概率最大差 **0.0**，本机按 5 张预热 / 100 输入 / 3 轮计时平均 **78.87ms**。验证选择包含乐观偏差，**尚无新榜单分数，T4 未实测**。已完成研究覆盖 21 个代码仓库、44 个文件及相关论文。详见 [第二轮交付结果](docs/ROUND2_FINAL_RESULTS.md)、[研究报告](docs/RESEARCH_REVIEW.md)和 [开发记录](docs/DEVELOPMENT_20261025.md)。
+**线上成绩更新（2026-10-26）**：用户确认 `round2_bundle/submission.csv` 的测试 AUC 为 **0.7678**，排名 **338/593**；对应本地验证 AUC 为 **0.811122**。下一阶段目标为原始官方验证集 AUC **≥0.90**，尚未达到。后续优先复现与MIMIC-CXR/CheXpert多标签、检查级任务对齐的强方法，具体采用范围和实现差异见 [任务对齐复现记录](docs/MATCHED_SOTA_REPRODUCTION.md)，历史线上成绩见 [反馈记录](docs/ONLINE_FEEDBACK.md)。
 
-**继续改进**：针对显存与短训练反馈，已完成真实反向传播资源测量，新增 ConvNeXt-Tiny 448 与 EfficientNetV2-S 384 两组各 36 轮、关闭早停的配方，采用更缓的学习率、更强正则化和 EMA，逐轮记录显存与吞吐。计划、实测和进度说明见 [长训练记录](docs/LONG_TRAINING_20261026.md)。这些实验尚未完成，不覆盖上述冻结交付。
+**已验证交付（2026-10-26）**：`submission/round2_bundle/submission.csv` 的真实测试 AUC 为 **0.7678**，完整包为 `submission/CXR-MLC-CAD_round2_20261026.zip`。统一 PyTorch 2.10、batch=1 下，DenseNet121 + EfficientNetV2-S + ResNet18 的固定逐类融合验证 Macro-AUC **0.811122**、调阈值 Macro-F1 **0.496667**；旧交付同条件 AUC **0.788140**。全测试原图复现概率最大差 **0.0**，本机按 5 张预热 / 100 输入 / 3 轮计时平均 **78.87ms**，T4 未实测。详见 [第二轮交付结果](docs/ROUND2_FINAL_RESULTS.md)、[研究报告](docs/RESEARCH_REVIEW.md)和 [开发记录](docs/DEVELOPMENT_20261025.md)。
+
+**长训练已完成**：ConvNeXt-Tiny 448 与 EfficientNetV2-S 384 各完成 36 轮，最优分别为第 8、2 轮，后期均过拟合。最终候选验证 AUC **0.811148**，与原交付差 **0.0000263**，患者配对区间包含负值，没有实质提升。新归档在 `submission/long_training_bundle/`，尚无线上成绩；保留原 76.78 分文件。详见 [长训练结果](docs/LONG_TRAINING_20261026.md)。
+
+**论文复现入口**：`python -m tools.run_matched_sota --cache <448缓存目录>` 可查看固定命令，加 `--execute` 执行。已接入真实 ML-Decoder、CheXFusion 加权 ASL、原作者强增强顺序、全视角图像训练，以及带有效视角掩码的第二阶段学习融合。PyTorch 2.8/2.10 数值与梯度核对、缺失视角与患者独立性检查、两个阶段合成数据完整入口检查通过；这些不代表验证成绩。训练专用依赖见 `requirements-reference-train.txt`，方法和适配差异见 [复现记录](docs/MATCHED_SOTA_REPRODUCTION.md)。
 
 2026 年第八届全国高校计算机能力挑战赛 **人工智能挑战赛**：基于胸部 X 光片的多标签疾病分类。使用 PyTorch，在官方数据上训练，对每次检查输出 10 类概率。
 
@@ -10,7 +14,7 @@
 
 以下为第一轮历史记录：当时完成四组训练及 120 个部署配置比较，采用 **ResNet18 类别空间注意力 + ASL 与 EfficientNetV2-B0 等权集成**，优先正位聚合，不使用翻转增强。
 
-第一轮目录：`submission/final_bundle/`，对应用户反馈的 72 分、432/488；原始结果见 [docs/FINAL_RESULTS.md](docs/FINAL_RESULTS.md)。该反馈尚不能确定为官方测试 AUC。当前可用文件见顶部第二轮交付。比赛数据、权重与逐例预测保留在本地，不上传公开仓库。
+第一轮目录：`submission/final_bundle/`，对应用户反馈的测试 AUC **0.7200**、432/488；原始结果见 [docs/FINAL_RESULTS.md](docs/FINAL_RESULTS.md)。当前线上反馈见顶部第二轮记录。比赛数据、权重与逐例预测保留在本地，不上传公开仓库。
 
 以下均为官方验证集 859 次检查上的 Python 3.12 / PyTorch 2.10 确定性部署结果；每个单模型展示其最佳聚合配置，隐藏测试分数未知：
 

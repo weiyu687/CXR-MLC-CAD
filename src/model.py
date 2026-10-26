@@ -5,6 +5,16 @@ import hashlib
 from pathlib import Path
 
 def build_model(name,pretrained=False):
+    if name.startswith('chexfusion_'):
+        from .reference_models import CheXFusionImage
+        catalog = {
+            'chexfusion_tiny_mldecoder': ('convnext_tiny_1k', 'ml_decoder'),
+            'chexfusion_tiny_gap': ('convnext_tiny_1k', 'gap'),
+            'chexfusion_base22k_mldecoder': ('convnext_base_22k', 'ml_decoder'),
+            'chexfusion_base22k_gap': ('convnext_base_22k', 'gap'),
+        }
+        backbone, head = catalog[name]
+        return CheXFusionImage(backbone, head, pretrained)
     if name == 'tv_densenet121_query':
         base = build_model('tv_densenet121', pretrained=pretrained)
         model = DenseNetLabelQuery(base)

@@ -1,0 +1,114 @@
+{
+  "module_parity_torch28": {
+    "torch": "2.8.0+cu126",
+    "python": "3.9.25",
+    "ml_decoder_output_max_difference": 0.0,
+    "ml_decoder_input_gradient_max_difference": 0.0,
+    "ml_decoder_parameter_gradient_max_difference": 0.0,
+    "weighted_asl_loss_difference": 0.0,
+    "weighted_asl_gradient_max_difference": 0.0,
+    "fixed_queries": true,
+    "patient_batch_independence": true,
+    "padding_invariance": true,
+    "weighted_asl_finite_difference_gradcheck": true,
+    "weighted_asl_state_roundtrip": true,
+    "author_source_sha256": {
+      "Alibaba-MIIL\\ML_Decoder\\src_files\\ml_decoder\\ml_decoder.py": "e5d5ebc887793acd59418ee7ebba3f1b0c0e230e2e10f8436e52fff2f5266382",
+      "dongkyunk\\CheXFusion\\model\\loss.py": "bd4f5be8b405b28379f1811d4e33a9f1c9f53d4de114d669df94bfba0b6de684"
+    },
+    "scope": "Synthetic CPU inputs; interface and mathematical parity, not classification performance"
+  },
+  "module_parity_torch210": {
+    "torch": "2.10.0+cu126",
+    "python": "3.12.15",
+    "ml_decoder_output_max_difference": 0.0,
+    "ml_decoder_input_gradient_max_difference": 0.0,
+    "ml_decoder_parameter_gradient_max_difference": 0.0,
+    "weighted_asl_loss_difference": 0.0,
+    "weighted_asl_gradient_max_difference": 0.0,
+    "fixed_queries": true,
+    "patient_batch_independence": true,
+    "padding_invariance": true,
+    "weighted_asl_finite_difference_gradcheck": true,
+    "weighted_asl_state_roundtrip": true,
+    "author_source_sha256": {
+      "Alibaba-MIIL\\ML_Decoder\\src_files\\ml_decoder\\ml_decoder.py": "e5d5ebc887793acd59418ee7ebba3f1b0c0e230e2e10f8436e52fff2f5266382",
+      "dongkyunk\\CheXFusion\\model\\loss.py": "bd4f5be8b405b28379f1811d4e33a9f1c9f53d4de114d669df94bfba0b6de684"
+    },
+    "scope": "Synthetic CPU inputs; interface and mathematical parity, not classification performance"
+  },
+  "study_checks_torch28": {
+    "python": "3.9.25",
+    "torch": "2.8.0+cu126",
+    "spatial_position_matches_NCHW_reference": true,
+    "image_backbone_receives_gradient": true,
+    "fixed_decoder_queries_receive_no_gradient": true,
+    "study_patient_batch_independence": true,
+    "study_padding_invariance": true,
+    "image_and_cached_feature_fusion_equivalence": true,
+    "stage2_backbone_frozen_and_eval": true,
+    "stage2_projection_and_decoder_receive_gradient": true,
+    "invalid_masks_rejected": true,
+    "scope": "Synthetic CPU correctness only; no validation performance claims"
+  },
+  "study_checks_torch210": {
+    "python": "3.12.15",
+    "torch": "2.10.0+cu126",
+    "spatial_position_matches_NCHW_reference": true,
+    "image_backbone_receives_gradient": true,
+    "fixed_decoder_queries_receive_no_gradient": true,
+    "study_patient_batch_independence": true,
+    "study_padding_invariance": true,
+    "image_and_cached_feature_fusion_equivalence": true,
+    "stage2_backbone_frozen_and_eval": true,
+    "stage2_projection_and_decoder_receive_gradient": true,
+    "invalid_masks_rejected": true,
+    "scope": "Synthetic CPU correctness only; no validation performance claims"
+  },
+  "full_image_entrypoint": {
+    "scope": "Synthetic CPU entrypoint checks only, not competition scores",
+    "results": [
+      {
+        "model": "chexfusion_tiny_gap",
+        "entrypoint_completed": true,
+        "image_training_holdout_exclusion": true,
+        "training_only_loss_counts": true,
+        "checkpoint_restored": true,
+        "finite_logits": true
+      },
+      {
+        "model": "chexfusion_tiny_mldecoder",
+        "entrypoint_completed": true,
+        "image_training_holdout_exclusion": true,
+        "training_only_loss_counts": true,
+        "checkpoint_restored": true,
+        "finite_logits": true
+      }
+    ]
+  },
+  "full_study_entrypoint": {
+    "epochs_completed": 1,
+    "best_holdout_auc": 0.425,
+    "official_website_submission_performed": false,
+    "delivery_inference_integrated": false
+  },
+  "base384_resource_probe": {
+    "model": "chexfusion_base22k_mldecoder",
+    "size": 384,
+    "batch_size": 16,
+    "real_data": false,
+    "workers": 4,
+    "steps": 4,
+    "warmup": 2,
+    "images_per_second": 89.92237170255395,
+    "mean_step_seconds": 0.17793124999999943,
+    "loader_wait_seconds": 0,
+    "peak_allocated_mib": 7494.41357421875,
+    "peak_reserved_mib": 7734.0,
+    "device": "NVIDIA GeForce RTX 4070 SUPER",
+    "torch": "2.8.0+cu126",
+    "python": "3.9.25",
+    "scope": "Full train stage including EMA and AdamW state; random initialization; no checkpoint saved"
+  },
+  "scope": "Synthetic checks and resource audit only; no new competition quality claims"
+}
