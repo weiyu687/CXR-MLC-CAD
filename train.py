@@ -1,6 +1,7 @@
 """Train on official data with random or audited non-medical ImageNet initialization."""
 import argparse
 import copy
+import hashlib
 import json
 import math
 import random
@@ -15,7 +16,8 @@ from src.data import Images, aggregate
 from src.model import build_model, AsymmetricLoss
 from src.metrics import evaluate
 from src.inference import forward_probabilities
-from src.training import configure_train_stage, mixed_target_loss, save_validation_candidate
+from src.training import (configure_train_stage, mixed_target_loss, save_validation_candidate,
+                          learning_rate, optimizer_groups)
 
 @torch.inference_mode()
 def predict(model, loader, device, tta=False):
@@ -57,6 +59,12 @@ def main():
     ap.add_argument('--split-seed',type=int,default=2030,help='Patient split seed, independent of model initialization')
     ap.add_argument('--head-lr-mult',type=float,help='Default 5 for a newly initialized ImageNet classifier, otherwise 1')
     ap.add_argument('--patience',type=int,default=0,help='Stop after this many epochs without an improvement in the selection split; 0 disables')
+    ap.add_argument('--min-epochs',type=int,default=0,help='Do not apply early stopping before this many completed epochs')
+    ap.add_argument('--warmup-epochs',type=float,default=2.)
+    ap.add_argument('--min-lr-ratio',type=float,default=0.)
+    ap.add_argument('--ema-decay',type=float,default=.99)
+    ap.add_argument('--no-decay-bias-norm',action='store_true')
+    ap.add_argument('--cuda-memory-fraction',type=float,default=1.,help='Per-process CUDA allocator ceiling')
     ap.add_argument('--horizontal-flip',action=argparse.BooleanOptionalAction,default=True,help='Training only; labels have no side-specific classes')
     args = ap.parse_args()
     if args.pretrained:
@@ -78,10 +86,17 @@ def main():
             args.mixup_objective=resume_config.get('mixup_objective','soft_target')
             args.freeze_backbone_epochs=resume_config.get('freeze_backbone_epochs',0)
             args.split_seed=resume_config.get('split_seed',resume_config.get('seed',args.seed))
+            for setting, default in [('warmup_epochs',2.),('min_lr_ratio',0.),('ema_decay',.99),
+                                     ('no_decay_bias_norm',False),('min_epochs',0)]:
+                setattr(args,setting,resume_config.get(setting,default))
         del resume_metadata
     if args.head_lr_mult is None:args.head_lr_mult=5. if args.pretrained else 1.
     if not 0<args.head_lr_mult<=100:raise ValueError('Invalid classifier learning-rate multiplier')
     if not 0<=args.freeze_backbone_epochs<args.epochs:raise ValueError('Invalid classifier warmup duration')
+    if not 0<=args.min_epochs<=args.epochs or args.patience<0:raise ValueError('Invalid early stopping duration')
+    if not 0<=args.ema_decay<1:raise ValueError('Invalid EMA decay')
+    if not 0<args.cuda_memory_fraction<=1:raise ValueError('Invalid CUDA memory fraction')
+    learning_rate(0,args.epochs,args.lr,args.warmup_epochs,args.min_lr_ratio)
     def git_output(arguments):
         try:
             result=subprocess.run(['git',*arguments],capture_output=True,text=True,timeout=5)
@@ -98,6 +113,7 @@ def main():
     torch.set_num_threads(4)
     torch.backends.cudnn.benchmark = True
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if device.type=='cuda':torch.cuda.set_per_process_memory_fraction(args.cuda_memory_fraction,device)
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     (out/'config.json').write_text(json.dumps(vars(args),indent=2),encoding='utf-8')
     (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
@@ -126,10 +142,11 @@ def main():
         provenance['pretraining']=model.pretraining_provenance
         (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     if args.init:
+        provenance['initial_checkpoint_sha256']=hashlib.sha256(Path(args.init).read_bytes()).hexdigest()
         init=torch.load(args.init,map_location='cpu',weights_only=False)
         if init.get('provenance',{}).get('pretraining'):
             provenance['pretraining']=init['provenance']['pretraining']
-            (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
+        (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
         state=init['state_dict']
         if args.model.endswith('_cap') and not init['config']['model'].endswith('_cap'):
             model.backbone.load_state_dict({k:v for k,v in state.items() if not k.startswith('fc.')},strict=True)
@@ -140,13 +157,7 @@ def main():
     ema = copy.deepcopy(model).eval()
     for p in ema.parameters(): p.requires_grad_(False)
     original_trainable={name for name,param in model.named_parameters() if param.requires_grad}
-    parameters=model.parameters()
-    if args.head_lr_mult!=1:
-        head=[p for n,p in model.named_parameters() if n.startswith(('fc.','classifier.','head.'))]
-        head_ids={id(p) for p in head}
-        if not head:raise ValueError('Classifier parameters not found')
-        parameters=[{'params':[p for p in model.parameters() if id(p) not in head_ids],'lr_scale':1.},
-                    {'params':head,'lr_scale':args.head_lr_mult}]
+    parameters=optimizer_groups(model,args.head_lr_mult,args.no_decay_bias_norm)
     optimizer = torch.optim.AdamW(parameters,lr=args.lr,weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler('cuda', enabled=device.type=='cuda')
     criterion = AsymmetricLoss() if args.loss=='asl' else torch.nn.BCEWithLogitsLoss()
@@ -175,12 +186,13 @@ def main():
     print(json.dumps({'device':str(device),'model':args.model,'train_studies':len(train),'valid_images':len(valid),'parameters':sum(p.numel() for p in model.parameters())}),flush=True)
     for epoch in range(start,args.epochs):
         t0=time.time(); total=0
+        if device.type=='cuda':torch.cuda.reset_peak_memory_stats(device)
         head_only=epoch<args.freeze_backbone_epochs
         configure_train_stage(model,head_only,original_trainable)
         print('TRAINING_STAGE '+('classifier_warmup' if head_only else 'full_finetune'),flush=True)
         for step,(x,y,_) in enumerate(tl):
             progress=(epoch+step/len(tl))
-            lr=args.lr*min(1.,(progress+0.1)/2)*0.5*(1+math.cos(math.pi*progress/args.epochs))
+            lr=learning_rate(progress,args.epochs,args.lr,args.warmup_epochs,args.min_lr_ratio)
             for group in optimizer.param_groups: group['lr']=lr*group.get('lr_scale',1.)
             x=x.to(device,non_blocking=True).to(memory_format=torch.channels_last); y=y.to(device,non_blocking=True)
             paired_targets=None;lam=None
@@ -198,11 +210,15 @@ def main():
             scaler.step(optimizer); scaler.update()
             with torch.no_grad():
                 for ev,mv in zip(ema.state_dict().values(),model.state_dict().values()):
-                    if ev.is_floating_point(): ev.lerp_(mv,0.01)
+                    if ev.is_floating_point(): ev.lerp_(mv,1-args.ema_decay)
                     else: ev.copy_(mv)
             total+=loss.item()
             if step%100==0:
                 print(f'epoch={epoch+1} step={step}/{len(tl)} loss={loss.item():.4f}',flush=True)
+        if device.type=='cuda':torch.cuda.synchronize(device)
+        training_seconds=time.time()-t0
+        training_peak_allocated=torch.cuda.max_memory_allocated(device)/1024**2 if device.type=='cuda' else None
+        training_peak_reserved=torch.cuda.max_memory_reserved(device)/1024**2 if device.type=='cuda' else None
         predictions=predict(ema,vl,device)
         modes=['mean','max','frontal','weighted'] if args.selection_aggregation=='auto' else [args.selection_aggregation]
         scores={}
@@ -220,6 +236,10 @@ def main():
         # A fixed patient holdout selects checkpoints without repeated official-valid tuning.
         selection_score=holdout_metrics['macro_auc'] if holdout_metrics else metrics['macro_auc']
         record={'epoch':epoch+1,'loss':total/len(tl),'seconds':time.time()-t0,
+                'training_seconds':training_seconds,'validation_seconds':time.time()-t0-training_seconds,
+                'train_images_per_second':len(tl)*args.batch_size/training_seconds,
+                'training_peak_allocated_mib':training_peak_allocated,'training_peak_reserved_mib':training_peak_reserved,
+                'optimizer_steps':len(tl),'backbone_lr_last':lr,
                 'aggregation':selected,'aggregation_macro_auc':{k:v['macro_auc'] for k,v in scores.items()},
                 'holdout':holdout_metrics,'selection_score':selection_score,**metrics}
         with (out/'history.jsonl').open('a',encoding='utf-8') as f: f.write(json.dumps(record)+'\n')
@@ -238,7 +258,7 @@ def main():
                     'epoch':epoch,'best':best,'random':random.getstate(),'numpy':np.random.get_state(),'torch':torch.get_rng_state(),
                     'cuda_rng':torch.cuda.get_rng_state_all() if device.type=='cuda' else [],
                     'config':vars(args),'provenance':provenance,'stale_epochs':stale_epochs},out/'last.pt')
-        if args.patience and stale_epochs>=args.patience:
+        if args.patience and epoch+1>=args.min_epochs and stale_epochs>=args.patience:
             print('EARLY_STOP selection split did not improve for '+str(stale_epochs)+' epochs',flush=True)
             break
     print('TRAINING_COMPLETE best_auc='+str(best),flush=True)

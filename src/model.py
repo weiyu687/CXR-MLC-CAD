@@ -16,6 +16,7 @@ def build_model(name,pretrained=False):
         catalog={
             'tv_resnet50':(models.resnet50,models.ResNet50_Weights.IMAGENET1K_V2,'fc'),
             'tv_densenet121':(models.densenet121,models.DenseNet121_Weights.IMAGENET1K_V1,'classifier'),
+            'tv_convnext_tiny':(models.convnext_tiny,models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1,'classifier'),
             'tv_efficientnet_v2_s':(models.efficientnet_v2_s,models.EfficientNet_V2_S_Weights.IMAGENET1K_V1,'classifier')}
         constructor,weights,head=catalog[name]
         model=constructor(weights=weights if pretrained else None)

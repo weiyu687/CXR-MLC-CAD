@@ -10,6 +10,38 @@ import torch
 HEAD_PREFIXES = ('fc.', 'classifier.', 'head.')
 
 
+def learning_rate(progress, epochs, base_lr, warmup_epochs=2., min_lr_ratio=0.):
+    """Keep the legacy schedule exactly when the new options use defaults."""
+    if epochs <= 0 or base_lr <= 0 or warmup_epochs < 0 or not 0 <= min_lr_ratio <= 1:
+        raise ValueError('Invalid learning-rate schedule')
+    progress = min(max(progress, 0.), epochs)
+    warmup = min(1., (progress + .1) / warmup_epochs) if warmup_epochs else 1.
+    cosine = .5 * (1 + math.cos(math.pi * progress / epochs))
+    return base_lr * warmup * (min_lr_ratio + (1-min_lr_ratio)*cosine)
+
+
+def optimizer_groups(model, head_multiplier=1., exclude_bias_norm=False):
+    """Partition parameters once by classifier LR and optional decay exclusion."""
+    groups = {}
+    found_head = False
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            continue
+        is_head = name.startswith(HEAD_PREFIXES)
+        found_head |= is_head
+        scale = head_multiplier if is_head else 1.
+        no_decay = exclude_bias_norm and (parameter.ndim <= 1 or name.endswith('.bias'))
+        key = (scale, no_decay)
+        if key not in groups:
+            groups[key] = {'params': [], 'lr_scale': scale}
+            if no_decay:
+                groups[key]['weight_decay'] = 0.
+        groups[key]['params'].append(parameter)
+    if head_multiplier != 1. and not found_head:
+        raise ValueError('Classifier parameters not found')
+    return list(groups.values())
+
+
 def save_validation_candidate(run, checkpoint, record, resume_state=False):
     """Preserve a separate official-validation-selected EMA model.
 

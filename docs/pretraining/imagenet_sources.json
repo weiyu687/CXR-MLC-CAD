@@ -25,5 +25,14 @@
     "training_data": "ImageNet-1K (non-medical natural images)",
     "license_url": "https://raw.githubusercontent.com/pytorch/vision/v0.23.0/LICENSE",
     "documentation": "https://docs.pytorch.org/vision/0.23/models/generated/torchvision.models.densenet121.html"
+  },
+  {
+    "name": "tv_convnext_tiny",
+    "weights": "ConvNeXt_Tiny_Weights.IMAGENET1K_V1",
+    "url": "https://download.pytorch.org/models/convnext_tiny-983f1562.pth",
+    "sha256": "983f1562536e84ff750a1576fb08e54de751dbf2e17c0d8a4a13704341fdcd3d",
+    "training_data": "ImageNet-1K (non-medical natural images)",
+    "license_url": "https://raw.githubusercontent.com/pytorch/vision/v0.23.0/LICENSE",
+    "documentation": "https://docs.pytorch.org/vision/0.23/models/generated/torchvision.models.convnext_tiny.html"
   }
 ]
