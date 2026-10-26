@@ -1,0 +1,156 @@
+{
+  "version": "round2_verified_20261026",
+  "competition": "2026 NCCCU Artificial Intelligence Challenge, CXR ten-label classification",
+  "validation": {
+    "macro_auc": 0.8111219096556889,
+    "auc": [
+      0.7505988023952096,
+      0.8767343986322088,
+      0.7787582223648324,
+      0.7411132594630773,
+      0.8851449275362319,
+      0.7786089434531206,
+      0.7874169506293858,
+      0.7292834890965734,
+      0.9085527160652369,
+      0.8750073869210132
+    ],
+    "macro_f1_05": 0.45442292556649316,
+    "macro_f1_tuned": 0.4966666126791296,
+    "gates": [
+      0.3562819673685,
+      0.5202904762705,
+      0.3835541186855,
+      0.2853601055685,
+      0.5439610378815,
+      0.3281588573015,
+      0.3472505961545,
+      0.4185331752525,
+      0.5577440923085,
+      0.5340108014645
+    ]
+  },
+  "old_matched_batch_validation_auc": 0.7881403114488347,
+  "patient_bootstrap": {
+    "patients": 228,
+    "studies": 859,
+    "replicates": 1000,
+    "seed": 2044,
+    "auc_delta": 0.022981598206854314,
+    "paired_delta_percentile_95": [
+      0.011825851260246637,
+      0.03220714928442851
+    ],
+    "scope": "Matched-batch paired patient-cluster bootstrap after repeated validation selection; descriptive and optimistic, not independent hidden-test confirmation"
+  },
+  "fusion_oof_mean_auc_by_shrinkage": {
+    "0.0": 0.8087305061271148,
+    "0.25": 0.8093331729770004,
+    "0.5": 0.8092490054948612,
+    "0.75": 0.8086272297607866,
+    "1.0": 0.8074332426830461
+  },
+  "selected_shrinkage": 0.25,
+  "selection_bias": "CNN/checkpoint/member/aggregation selection already used valid. Fusion OOF is not independent end-to-end evaluation.",
+  "models_sha256": [
+    "a78486e954a913edbf4ba3d87743ffc8b291a28e1f8255793a5e67ef403b0374",
+    "9a7431a8bd577e0365254a7551db92656f946ebb5e3fab66f70d224f22fb0178",
+    "1b084e21fec81fd5986f691d0336e166a0993c217a91758229be42413642175c"
+  ],
+  "ensemble_weights": [
+    [
+      0.25,
+      0.1875,
+      0.4375,
+      0.25,
+      0.3125,
+      0.25,
+      0.1875,
+      0.3125,
+      0.25,
+      0.25
+    ],
+    [
+      0.5625,
+      0.5,
+      0.375,
+      0.4375,
+      0.4375,
+      0.5,
+      0.625,
+      0.4375,
+      0.5625,
+      0.5625
+    ],
+    [
+      0.1875,
+      0.3125,
+      0.1875,
+      0.3125,
+      0.25,
+      0.25,
+      0.1875,
+      0.25,
+      0.1875,
+      0.1875
+    ]
+  ],
+  "aggregation": "frontal",
+  "tta": false,
+  "verification": {
+    "files_verified": 29,
+    "model_bytes": 154779554,
+    "deployment_bytes": 154794764,
+    "submission": {
+      "rows": 14140,
+      "studies": 1414,
+      "classes": 10,
+      "valid": true
+    },
+    "frozen_gates_match": true,
+    "model_hashes_match": true,
+    "independent_inference_reproduced": true,
+    "T4_verified": false,
+    "emitted_threshold_equalities": 0,
+    "disjoint_probability_and_gate_grids": true,
+    "latency_selection_split": "valid",
+    "local_latency_sample_limit_passed": true,
+    "local_latency_samples": 100,
+    "local_latency_max_ms": 189.27913333269922,
+    "local_latency_limit_statistic": "mean",
+    "local_latency_mean_ms": 83.59317900004194,
+    "max_probability_difference": 0.0,
+    "reproduction_configuration_matches": true,
+    "runtime_recorded": true
+  },
+  "frozen_cost": {
+    "samples": 100,
+    "warmup": 5,
+    "rounds": 3,
+    "official_sample_protocol": true,
+    "mean_ms": 78.87299000016355,
+    "max_probability_difference": 0.0,
+    "submission_predictions_match": true,
+    "local_mean_limit_passed": true,
+    "runtime": {
+      "python": "3.12.15",
+      "operating_system": "Windows",
+      "torch": "2.10.0+cu126",
+      "torchvision": "0.25.0+cu126",
+      "timm": "1.0.30",
+      "Pillow": "11.3.0",
+      "device": "cuda",
+      "device_name": "NVIDIA GeForce RTX 4070 SUPER",
+      "cuda_build": "12.6",
+      "cudnn": 91002,
+      "deterministic_algorithms": true,
+      "inference_dtype": "float16"
+    },
+    "T4_verified": false
+  },
+  "submission_sha256": "ac8df6d748a57649153ba69234c1c1c4113b181908231d217fbbb41b9dfab48d",
+  "archive_sha256": "e37d769feb5cb7a58ca54b16b04f800e2a291c0f6bae2d626ed2fb270bc09eac",
+  "archive_bytes": 254759494,
+  "official_website_submission_performed": false,
+  "new_hidden_test_result_known": false
+}

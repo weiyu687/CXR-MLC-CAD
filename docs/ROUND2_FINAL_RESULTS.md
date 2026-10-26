@@ -58,7 +58,7 @@ AUC 增加 **0.0229815982**，约 2.30 个百分点。228 位患者的配对簇 
 
 设备为 RTX 4070 SUPER。平均耗时按三轮的逐输入均值再取 100 输入平均，满足本机 100ms 限制；单个输入可能超过 100ms。test 计时只复核冻结后的方案，没有据此重新选择模型。**尚未实测官方 T4 / CUDA 12.8**，本机达标不代表该环境已验收。
 
-本地证据保留在 `outputs/research_delivery_classwise_s2038/`：`final_selection/selected.json`、`final_selection/verification.json`、`final_patient_comparison.json`、`cost_results/cost_report.json`、`delivery_reverification_20261026.json`、`archive_receipt_20261026.json`。公开仓库只发布汇总指标与方法说明。
+本地证据保留在 `outputs/research_delivery_classwise_s2038/`：`final_selection/selected.json`、`final_selection/verification.json`、`final_patient_comparison.json`、`cost_results/cost_report.json`、`delivery_reverification_20261026.json`、`archive_receipt_20261026.json`。公开的 [汇总结果 JSON](research/round2_verified_aggregate.json)包含精确验证指标、OOF、患者区间、模型摘要和复现/计时摘要，不含逐例数据。
 
 ## 后续长训练
 
