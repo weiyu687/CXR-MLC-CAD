@@ -58,3 +58,7 @@ CheXFusion已读代码中还存在需要适配的新旧PyTorch接口、sequence-
 公开非医学ConvNeXt-B ImageNet22K权重SHA256为 `b007c30d8173f247df47699bd991f534d0ba5284c49929ac71444f7d82d8cfcf`，实际本地载入及多尺寸有限前向完成。384/batch16完整AMP反向、EMA和AdamW短资源探测峰值allocated7494MiB、reserved7734MiB，约89.9图/秒；这不是AUC或官方T4延迟。DINOv2-register权重也已审计，尚未进入此有限训练队列。
 
 复现命令：先安装`requirements-reference-train.txt`，再运行`python -m tools.run_matched_sota --cache <448缓存目录> --execute`。队列源代码冻结期间不修改训练实现。未执行网站提交；valid≥0.90目标尚未达到。
+
+正式队列于2026-10-26 **16:47:49** 在干净工作区启动，代码提交 `228db86e7b80ba0f5e04518d1a0e66cf748ba087` 已推送至GitHub。根目录为 `outputs/matched_sota_20261026/`，`plan.json` 保存代码及CSV摘要，`status.json` 和各组日志记录实际进度。首组确认训练27,329张图像/16,633次检查；类别权重来自剔除留出患者后的图像，10%患者的留出只作评估。首组已进入实际CUDA反向传播；训练结果待全部阶段完成后复核，不能把启动记录当作性能提升。
+
+额外适配：目前检查内视图采用正位优先、按元数据稳定排序；作者论文中使用视图顺序随机打乱。当前不宣称已复现这项随机顺序消融；与固定单图聚合的比较应明确这一差异。
