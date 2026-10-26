@@ -113,7 +113,7 @@ def main():
     torch.set_num_threads(4)
     torch.backends.cudnn.benchmark = True
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    if device.type=='cuda':torch.cuda.set_per_process_memory_fraction(args.cuda_memory_fraction,device)
+    if device.type=='cuda':torch.cuda.set_per_process_memory_fraction(args.cuda_memory_fraction)
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     (out/'config.json').write_text(json.dumps(vars(args),indent=2),encoding='utf-8')
     (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
