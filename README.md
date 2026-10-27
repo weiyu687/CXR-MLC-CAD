@@ -1,6 +1,6 @@
 # CXR-MLC-CAD
 
-**当前方向（2026-10-27）**：按用户要求暂停AUC/PESG与DINOv2迁移队列，改为适配 [arnoweng/CheXNet](https://github.com/arnoweng/CheXNet)。两组学习率0.001/0.0001的正式队列已启动，每组至少20轮、最多60轮；[进度快照](docs/research/chexnet_progress_20261027.json) 标明已完成轮数和记录时间，不把计划轮数当作完成轮数。已补齐十标签DenseNet121训练、RGB/256十裁剪评估及独立推理和打包入口。只使用通用ImageNet初始化和官方train，未使用仓库的医学训练权重。训练后的目标环境复核、患者比较和测时决定是否替换原提交，适配范围及程序核对见 [CheXNet记录](docs/CHEXNET_ADAPTATION.md)。此前CheXFusion四组已完成，验证未超过原交付；原始验证AUC≥0.90目标尚未达到。
+**CheXNet结果（2026-10-27）**：按用户要求适配 [arnoweng/CheXNet](https://github.com/arnoweng/CheXNet)，两组均已完成训练与复核。学习率0.001训练40轮，最佳第10轮；0.0001训练20轮，最佳第3轮。统一Python3.12/PyTorch2.10、batch1后，十裁剪验证AUC分别为 **0.760435 / 0.791554**，低于原交付集成的 **0.811122**；后期继续训练没有提升。只使用通用ImageNet初始化和官方train，未使用仓库的医学训练权重。较优组的十裁剪/中心裁剪本机验证原图平均耗时为 **156.20 / 120.80ms**，T4未实测。没有生成替换测试CSV，原76.78分文件保留，验证AUC≥0.90尚未达到。详见 [完整结果与曲线](docs/CHEXNET_RESULTS_20261027.md)、[适配范围](docs/CHEXNET_ADAPTATION.md)及[完成状态](docs/research/chexnet_progress_20261027.json)。此前AUC/PESG与DINOv2方向保持暂停。
 
 **线上成绩更新（2026-10-26）**：用户确认 `round2_bundle/submission.csv` 的测试 AUC 为 **0.7678**，排名 **338/593**；对应本地验证 AUC 为 **0.811122**。下一阶段目标为原始官方验证集 AUC **≥0.90**，尚未达到。后续优先复现与MIMIC-CXR/CheXpert多标签、检查级任务对齐的强方法，具体采用范围和实现差异见 [任务对齐复现记录](docs/MATCHED_SOTA_REPRODUCTION.md)，历史线上成绩见 [反馈记录](docs/ONLINE_FEEDBACK.md)。
 

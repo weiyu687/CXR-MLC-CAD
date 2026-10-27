@@ -53,7 +53,7 @@ python -m tools.predict_chexnet --checkpoint <实验目录>/best.pt --root raw_d
 
 ## 启动与后续复核
 
-两组正式队列已于2026-10-27 **10:53:36** 从干净工作区启动，冻结代码提交 `cc2641a88a6dfb443361484e3bcc4f886031788f`。当前先运行0.001组，实际轮数、逐轮汇总及记录时间见[进度快照](research/chexnet_progress_20261027.json)与[阶段曲线](figures/chexnet_progress_20261027.png)。这是仍在训练的记录，不是完成两组实验后的结论。原AUC/DINOv2方向未恢复。
+两组正式队列已于2026-10-27 **10:53:36** 从干净工作区启动，冻结代码提交 `cc2641a88a6dfb443361484e3bcc4f886031788f`。现已分别完成40/20轮及目标环境复核，最佳验证AUC为0.760435/0.791554，没有超过原交付。完整解读与最终曲线见[正式结果](CHEXNET_RESULTS_20261027.md)，实际轮数和逐轮汇总见[完成状态](research/chexnet_progress_20261027.json)；[19轮阶段曲线](figures/chexnet_progress_20261027.png)保留为此前时间点的历史快照。原AUC/DINOv2方向未恢复。
 
 `tools/review_chexnet.py` 在两组训练全部完成后，以Python3.12/PyTorch2.10、batch1重新评估两种选型检查点及两种裁剪，复核冻结源文件和权重摘要，只读取官方valid。**中心裁剪单独以batch1前向**；训练日志从十裁剪批次抽取的中心成员仅作训练期观察，不能当作不同CUDA批次形状下的部署复核。两种模式均采用实际部署的概率舍入策略。汇总写入 `docs/research/chexnet_verified_20261027.json`，本地回执在 `outputs/chexnet_20261027/review_complete.json`。新成绩仍属于反复选型后的验证结果，不能称为测试成绩。该复核不会执行网站提交或自动恢复暂停队列。
 
@@ -71,6 +71,6 @@ python -m tools.predict_chexnet --checkpoint <实验目录>/best.pt --root raw_d
 python -m tools.finish_chexnet --timing-root <验证原图SSD目录> --test-root <测试原图SSD目录>
 ```
 
-汇总、训练曲线和结果说明将写入 `docs/research/chexnet_completion_20261027.json`、`docs/figures/chexnet_20261027.png`、`docs/CHEXNET_RESULTS_20261027.md`。满足替换条件时，`tools/package_chexnet.py` 生成 `submission/chexnet_bundle_20261027/` 及zip，包含独立推理入口、原图测时入口、权重、类别映射、固定阈值、来源和文件摘要；不包含比赛原图。加载权重与必要配置合计限制为500MB。冻结完成流程的代码摘要另记于本地 `completion_plan.json`，没有更改正在训练的20个冻结源文件。
+汇总、训练曲线和结果说明已写入 `docs/research/chexnet_completion_20261027.json`、`docs/figures/chexnet_20261027.png`、`docs/CHEXNET_RESULTS_20261027.md`。本轮没有满足替换条件的候选，因此未生成新测试CSV和新提交包。后续满足条件时，`tools/package_chexnet.py` 可生成 `submission/chexnet_bundle_20261027/` 及zip，包含独立推理入口、原图测时入口、权重、类别映射、固定阈值、来源和文件摘要；不包含比赛原图。加载权重与必要配置合计限制为500MB。冻结完成流程的代码摘要另记于本地 `completion_plan.json`，本轮20个冻结训练源文件和11个完成流程源文件均核对一致。
 
 完成流程的程序检查使用合成CPU数据：独立材料在仅有test元数据/图像的目录复现概率最大差0.0，文件被修改时拒绝验证，把中心裁剪耗时报告套给十裁剪时也拒绝；zip的CRC与每个文件摘要通过。它们只说明交付流程可运行，不代表正式GPU耗时、比赛得分或T4合格。

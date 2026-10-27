@@ -1,0 +1,304 @@
+{
+  "source_commit": "cc2641a88a6dfb443361484e3bcc4f886031788f",
+  "completion_source_commit": "fb3f649d234d5ed2aec7f9ae504d055eb6319981",
+  "review_sha256": "489adebb4d49268ab8b9d08afe055e613dc3eb61edfe893d0b1aae0a851086c6",
+  "runtime": {
+    "python": "3.12.15",
+    "operating_system": "Windows",
+    "torch": "2.10.0+cu126",
+    "torchvision": "0.25.0+cu126",
+    "timm": "1.0.30",
+    "Pillow": "11.3.0",
+    "device": "cuda",
+    "device_name": "NVIDIA GeForce RTX 4070 SUPER",
+    "cuda_build": "12.6",
+    "cudnn": 91002,
+    "deterministic_algorithms": true,
+    "inference_dtype": "float16"
+  },
+  "valid_studies": 859,
+  "valid_patients": 228,
+  "best_chexnet_candidate": {
+    "run": "adapt_lr0001",
+    "selection_basis": "official_valid_macro_auc",
+    "epoch": 3,
+    "crop": "ten",
+    "checkpoint_sha256": "f5073367bbb28200070ae68a62d134a5ac347078f27bd8db2a33d94fd27f80cc",
+    "model_input_fingerprint": "46cf38c463a099e6ea9ad24414f650e70adaed28d3ab4d929a35c0a93295869a",
+    "validation": {
+      "macro_auc": 0.7915535584384302,
+      "auc": [
+        0.7012974051896208,
+        0.8602946011705137,
+        0.7795871436975239,
+        0.7130400832899532,
+        0.8818139317438055,
+        0.7480159716354358,
+        0.7747358757721452,
+        0.7082735637180323,
+        0.8916591755489919,
+        0.8568178326182794
+      ],
+      "macro_f1_05": 0.23130890256030337,
+      "macro_f1_tuned": 0.46532983740484235,
+      "gates": [
+        0.0871485918765,
+        0.1799054071305,
+        0.1781706959015,
+        0.1683776546275,
+        0.2423534318805,
+        0.2727962136265,
+        0.1594783738255,
+        0.2971115559345,
+        0.4381813853985,
+        0.3300470709805
+      ]
+    },
+    "comparison_name": "adapt_lr0001_official_valid_macro_auc_ten"
+  },
+  "incumbent_validation": {
+    "macro_auc": 0.8111219096556889,
+    "auc": [
+      0.7505988023952096,
+      0.8767343986322088,
+      0.7787582223648324,
+      0.7411132594630773,
+      0.8851449275362319,
+      0.7786089434531206,
+      0.7874169506293858,
+      0.7292834890965734,
+      0.9085527160652369,
+      0.8750073869210132
+    ],
+    "macro_f1_05": 0.45442292556649316,
+    "macro_f1_tuned": 0.4966666126791296,
+    "gates": [
+      0.3562819673685,
+      0.5202904762705,
+      0.3835541186855,
+      0.2853601055685,
+      0.5439610378815,
+      0.3281588573015,
+      0.3472505961545,
+      0.4185331752525,
+      0.5577440923085,
+      0.5340108014645
+    ]
+  },
+  "incumbent_user_reported_test_auc": 0.7678,
+  "patient_comparison": {
+    "reference": "round2_incumbent",
+    "patients": 228,
+    "studies": 859,
+    "seed": 2051,
+    "bootstrap_requested": 1000,
+    "bootstrap_accepted": 1000,
+    "bootstrap_discarded_missing_class": 0,
+    "evaluable_class_indices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "scope": "Paired patient-cluster percentile bootstrap; checkpoint/model selection estimates, not hidden-test results",
+    "models": {
+      "round2_incumbent": {
+        "macro_auc": 0.8111219096556889,
+        "per_class_auc": [
+          0.7505988023952096,
+          0.8767343986322088,
+          0.7787582223648324,
+          0.7411132594630773,
+          0.8851449275362319,
+          0.7786089434531206,
+          0.7874169506293859,
+          0.7292834890965733,
+          0.9085527160652369,
+          0.8750073869210131
+        ],
+        "macro_auc_percentile_95": [
+          0.774361555470291,
+          0.8426755545501529
+        ],
+        "delta_from_reference": 0.0,
+        "paired_delta_percentile_95": [
+          0.0,
+          0.0
+        ]
+      },
+      "adapt_lr0001_official_valid_macro_auc_ten": {
+        "macro_auc": 0.7915535584384302,
+        "per_class_auc": [
+          0.7012974051896208,
+          0.8602946011705136,
+          0.7795871436975239,
+          0.7130400832899532,
+          0.8818139317438055,
+          0.7480159716354359,
+          0.7747358757721452,
+          0.7082735637180323,
+          0.8916591755489919,
+          0.8568178326182794
+        ],
+        "macro_auc_percentile_95": [
+          0.7557160378121113,
+          0.8264158917283224
+        ],
+        "delta_from_reference": -0.019568351217258806,
+        "paired_delta_percentile_95": [
+          -0.032648337526713846,
+          -0.00696814091299861
+        ]
+      },
+      "adapt_lr0001_official_valid_macro_auc_center": {
+        "macro_auc": 0.7855096845995547,
+        "per_class_auc": [
+          0.6853542914171656,
+          0.8383310317616887,
+          0.7700812877693994,
+          0.7048133412657098,
+          0.880750350631136,
+          0.7519467501698229,
+          0.7721685415985934,
+          0.7048141708324277,
+          0.8907313471169899,
+          0.8561057334326135
+        ],
+        "macro_auc_percentile_95": [
+          0.7512098583526774,
+          0.8179224516427146
+        ],
+        "delta_from_reference": -0.025612225056134263,
+        "paired_delta_percentile_95": [
+          -0.039469685054668975,
+          -0.012973956172653046
+        ]
+      },
+      "paper_lr001_official_valid_macro_auc_ten": {
+        "macro_auc": 0.760435012378086,
+        "per_class_auc": [
+          0.6550898203592814,
+          0.7467284803051226,
+          0.752179260923044,
+          0.687532535137949,
+          0.854382889200561,
+          0.7336680086816774,
+          0.7506885123465434,
+          0.6888574947475187,
+          0.8763901374085014,
+          0.8588329846706615
+        ],
+        "macro_auc_percentile_95": [
+          0.7192209563300657,
+          0.7973355867332784
+        ],
+        "delta_from_reference": -0.05068689727760293,
+        "paired_delta_percentile_95": [
+          -0.06568116306810566,
+          -0.0372157311931443
+        ]
+      },
+      "paper_lr001_official_valid_bce_ten": {
+        "macro_auc": 0.7583085300969477,
+        "per_class_auc": [
+          0.6720558882235529,
+          0.7397908857762873,
+          0.7476603026899834,
+          0.6734215810217893,
+          0.8499766245909304,
+          0.7278443262587604,
+          0.7549907420373742,
+          0.6818590161559082,
+          0.8791704122255041,
+          0.8563155219893864
+        ],
+        "macro_auc_percentile_95": [
+          0.711433144621973,
+          0.7979272648397375
+        ],
+        "delta_from_reference": -0.052813379558741325,
+        "paired_delta_percentile_95": [
+          -0.0705184211565582,
+          -0.038362613436099244
+        ]
+      },
+      "paper_lr001_official_valid_macro_auc_center": {
+        "macro_auc": 0.7544508912906233,
+        "per_class_auc": [
+          0.6470808383233533,
+          0.7272473203130138,
+          0.7538103641905984,
+          0.658492600580055,
+          0.8445710612435717,
+          0.734790496545554,
+          0.7523106007561966,
+          0.698094617112222,
+          0.8733112880441762,
+          0.854799725797492
+        ],
+        "macro_auc_percentile_95": [
+          0.7172357200211646,
+          0.7897378418383084
+        ],
+        "delta_from_reference": -0.056671018365065676,
+        "paired_delta_percentile_95": [
+          -0.07146541079670744,
+          -0.04393615700268592
+        ]
+      },
+      "paper_lr001_official_valid_bce_center": {
+        "macro_auc": 0.7530591870856405,
+        "per_class_auc": [
+          0.6716317365269461,
+          0.732573814690603,
+          0.7533156853307663,
+          0.6477467093031903,
+          0.8353728377746611,
+          0.722041353944033,
+          0.7527734988874886,
+          0.6907266536260234,
+          0.8770322332091948,
+          0.8473773475634979
+        ],
+        "macro_auc_percentile_95": [
+          0.7122402382825523,
+          0.7883853344167172
+        ],
+        "delta_from_reference": -0.05806272257004852,
+        "paired_delta_percentile_95": [
+          -0.07578617027628841,
+          -0.04540363622515051
+        ]
+      }
+    }
+  },
+  "validation_cost": {
+    "adapt_lr0001_official_valid_macro_auc_ten": {
+      "mean_ms": 156.19571600031728,
+      "local_mean_limit_passed": false,
+      "max_probability_difference": 0.0,
+      "T4_verified": false
+    },
+    "adapt_lr0001_official_valid_macro_auc_center": {
+      "mean_ms": 120.80383666626102,
+      "local_mean_limit_passed": false,
+      "max_probability_difference": 0.0,
+      "T4_verified": false
+    }
+  },
+  "selected_new_chexnet_candidate": null,
+  "delivery": null,
+  "target_valid_auc": 0.9,
+  "target_met_in_validation": false,
+  "test_images_or_metadata_read": false,
+  "new_hidden_test_result_known": false,
+  "official_website_submission_performed": false,
+  "prior_auc_dinov2_queue_paused": true,
+  "interpretation": "Repeated official-valid model/checkpoint/crop selection. Patient-cluster bootstrap is descriptive; neither independent confirmation nor a hidden-test score."
+}
