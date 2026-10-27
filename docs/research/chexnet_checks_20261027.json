@@ -56,5 +56,15 @@
     "probability_max_difference": 0.0,
     "synthetic_submission_rows": 40,
     "no_competition_submission_performed": true
+  },
+  "cost_entrypoint_smoke": {
+    "CPU": true,
+    "samples": 2,
+    "warmup": 1,
+    "rounds": 3,
+    "official_sample_protocol": false,
+    "probability_max_difference": 0.0,
+    "full_study_raw_read_and_result_write_included": true,
+    "T4_verified": false
   }
 }

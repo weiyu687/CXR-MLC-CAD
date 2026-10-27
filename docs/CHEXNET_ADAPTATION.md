@@ -50,3 +50,11 @@ python -m tools.predict_chexnet --checkpoint <实验目录>/best.pt --root raw_d
 `run_chexnet`不带`--execute`只展示固定命令；执行时要求代码已提交、核对缓存及ImageNet权重摘要、冻结源代码并串行训练两组。结果在 `outputs/chexnet_20261027/`。`status.json`、`plan.json` 和逐组日志保留进度和依据。暂停的AUC/DINOv2队列不会自动恢复。
 
 最终测试推理需要先冻结验证报告：`python -m tools.predict_chexnet --checkpoint <best.pt> --root <官方数据目录> --calibration <冻结report.json> --out <输出目录>`。该模式只读取test元数据和图像，不需要valid标签；可不传缓存以直接复现原图。尚未执行比赛网站提交，验证AUC≥0.90目标仍未达到。
+
+## 启动与后续复核
+
+两组正式队列已于2026-10-27 **10:53:36** 从干净工作区启动，冻结代码提交 `cc2641a88a6dfb443361484e3bcc4f886031788f`。当前先运行0.001组。首轮训练完成19,757张图像，十裁剪valid AUC **0.711924**，中心裁剪 **0.707712**；这是首轮记录，不能视为最终结果或性能提升。程序已进入第二轮，原AUC/DINOv2方向未恢复。
+
+`tools/review_chexnet.py` 在两组训练全部完成后，以Python3.12/PyTorch2.10、batch1重新评估两种选型检查点及两种裁剪，复核冻结源文件和权重摘要，只读取官方valid。汇总写入 `docs/research/chexnet_verified_20261027.json`，本地回执在 `outputs/chexnet_20261027/review_complete.json`。新成绩仍属于反复选型后的验证结果，不能称为测试成绩。该复核不会执行网站提交或自动恢复暂停队列。
+
+独立测时入口为 `python -m tools.cost_chexnet --checkpoint <best.pt> --calibration <冻结报告> --submission <CSV> --root <原图目录> --pictures <官方100张目录> --warmup-pictures <官方5张目录> --out <测时结果目录>`。默认连续3轮，计入原图和同检查配套图读取、十裁剪、聚合及真实CSV写入/flush/fsync，模型初始化不计。GPU测时前检查空闲负载。已用合成CPU数据验证其与冻结CSV一致；样本仅2/预热1，不计作官方协议或T4通过。正式GPU测时应在训练结束、候选冻结后运行。
