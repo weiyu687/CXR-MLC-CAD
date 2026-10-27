@@ -25,9 +25,11 @@ from src.metrics import submission_probabilities
 
 
 class StudyPredictor:
-    def __init__(self,checkpoint,root,calibration,device):
+    def __init__(self,checkpoint,root,calibration,device,split='test'):
         self.root=Path(root)
         self.device=device
+        if split not in ['valid','test']:raise ValueError('Timing split must be valid or test')
+        self.split=split
         self.report=json.loads(Path(calibration).read_text(encoding='utf-8'))
         digest=hashlib.sha256(Path(checkpoint).read_bytes()).hexdigest()
         if self.report['checkpoint_sha256']!=digest or self.report['preprocessing']!=CACHE_SIGNATURE:
@@ -36,13 +38,15 @@ class StudyPredictor:
         self.model,_=load_checkpoint(checkpoint,device)
         self.crop=self.report['arguments']['crop']
         self.transform=CheXNetTransform(self.crop)
-        self.df=frame(root,'test')
+        self.df=frame(root,split)
+        if split=='valid' and self.report['dataset_csv_sha256']!=hashlib.sha256((self.root/'valid.csv').read_bytes()).hexdigest():
+            raise ValueError('Validation timing CSV differs from calibration')
         self.positions={identifier:index for index,identifier in enumerate(self.df.Dicom_id)}
         self.groups={identifier:group.index.tolist() for identifier,group in self.df.groupby('Study_id',sort=False)}
 
     def path(self,index):
         row=self.df.iloc[index]
-        return self.root/'test'/row.Subject_id/row.Study_id/(row.Dicom_id+'.jpg')
+        return self.root/self.split/row.Subject_id/row.Study_id/(row.Dicom_id+'.jpg')
 
     @torch.inference_mode()
     def __call__(self,path):
@@ -77,6 +81,7 @@ def main():
     parser.add_argument('--calibration',required=True)
     parser.add_argument('--submission',required=True)
     parser.add_argument('--root',required=True)
+    parser.add_argument('--split',choices=['valid','test'],default='test',help='Use valid for pre-test latency selection')
     parser.add_argument('--pictures')
     parser.add_argument('--warmup-pictures')
     parser.add_argument('--samples',type=int,default=100)
@@ -95,7 +100,7 @@ def main():
         from tools.gpu_idle import wait_for_idle_gpu
         out.parent.mkdir(parents=True,exist_ok=True)
         wait_for_idle_gpu(out.with_suffix('.gpu_load.jsonl'),max_wait_seconds=240)
-    engine=StudyPredictor(args.checkpoint,args.root,args.calibration,device)
+    engine=StudyPredictor(args.checkpoint,args.root,args.calibration,device,args.split)
     runtime=runtime_information(device)
     if runtime!=engine.report['runtime']:raise ValueError('Timing and frozen inference runtime differ')
     original=[engine.path(index) for index in range(len(engine.df))]
@@ -130,10 +135,13 @@ def main():
             times.append(round_times)
     mean=float(np.asarray(times).mean(axis=0).mean())
     protocol=bool(args.pictures and args.warmup_pictures and args.samples==100 and args.warmup==5 and args.rounds==3)
-    report={'samples':args.samples,'warmup':args.warmup,'rounds':args.rounds,'official_sample_protocol':protocol,
+    report={'samples':args.samples,'warmup':args.warmup,'rounds':args.rounds,
+        'official_sample_protocol':protocol and args.split=='test','full_sample_protocol':protocol,
         'mean_ms':mean,'all_rounds_ms':times,'max_probability_difference':maximum_difference,
         'submission_predictions_match':maximum_difference<=1e-9,'local_mean_limit_passed':mean<=100,
         'runtime':runtime,'T4_verified':False,'checkpoint_sha256':engine.report['checkpoint_sha256'],
+        'crop':engine.crop,'batch_size':1,'preprocessing':CACHE_SIGNATURE,
+        'split':args.split,'dataset_csv_sha256':hashlib.sha256((Path(args.root)/(args.split+'.csv')).read_bytes()).hexdigest(),
         'scope':'Full-study original-image I/O and flushed/fsynced result writing; model initialization excluded'}
     (out/'cost_report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     print(json.dumps(report,indent=2),flush=True)

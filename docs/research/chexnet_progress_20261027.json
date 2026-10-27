@@ -1,0 +1,196 @@
+{
+  "as_of": "2026-10-27T11:58:45+08:00",
+  "stage": "TRAINING",
+  "current_run": "paper_lr001",
+  "source_commit": "cc2641a88a6dfb443361484e3bcc4f886031788f",
+  "training_runtime": "Python3.9/PyTorch2.8/CUDA12.6",
+  "source_files_verified": 20,
+  "experiments": [
+    {
+      "name": "paper_lr001",
+      "initial_lr": 0.001,
+      "completed_epochs": 19,
+      "planned_min_epochs": 20,
+      "planned_max_epochs": 60,
+      "best_completed_epoch": 10,
+      "best_completed_ten_crop_validation_auc": 0.7604365043827795,
+      "history_aggregate": [
+        {
+          "epoch": 1,
+          "loss": 3.552184514805826,
+          "validation_bce": 3.704163950383272,
+          "macro_auc": 0.7119240368452279,
+          "lr_next": 0.001,
+          "training_seconds": 362.89863753318787
+        },
+        {
+          "epoch": 2,
+          "loss": 3.4183905040070783,
+          "validation_bce": 3.6865794070940745,
+          "macro_auc": 0.714222433578701,
+          "lr_next": 0.001,
+          "training_seconds": 183.11825466156006
+        },
+        {
+          "epoch": 3,
+          "loss": 3.3568116452232113,
+          "validation_bce": 3.4891757433286688,
+          "macro_auc": 0.7353688746306087,
+          "lr_next": 0.001,
+          "training_seconds": 183.26376223564148
+        },
+        {
+          "epoch": 4,
+          "loss": 3.303580536752805,
+          "validation_bce": 3.401679669108701,
+          "macro_auc": 0.7371475542368165,
+          "lr_next": 0.001,
+          "training_seconds": 182.92886090278625
+        },
+        {
+          "epoch": 5,
+          "loss": 3.2744165315689355,
+          "validation_bce": 3.45494936867802,
+          "macro_auc": 0.740678659421095,
+          "lr_next": 0.001,
+          "training_seconds": 183.07683300971985
+        },
+        {
+          "epoch": 6,
+          "loss": 3.247993902354707,
+          "validation_bce": 3.451712916169947,
+          "macro_auc": 0.7460376473540402,
+          "lr_next": 0.001,
+          "training_seconds": 183.4662618637085
+        },
+        {
+          "epoch": 7,
+          "loss": 3.220364618019011,
+          "validation_bce": 3.478850054065281,
+          "macro_auc": 0.7481547290048247,
+          "lr_next": 0.0001,
+          "training_seconds": 183.3725836277008
+        },
+        {
+          "epoch": 8,
+          "loss": 3.0982976506437834,
+          "validation_bce": 3.3699836707494657,
+          "macro_auc": 0.7567889089661498,
+          "lr_next": 0.0001,
+          "training_seconds": 183.07706308364868
+        },
+        {
+          "epoch": 9,
+          "loss": 3.0536641822252495,
+          "validation_bce": 3.3348404552250885,
+          "macro_auc": 0.7586366791477558,
+          "lr_next": 0.0001,
+          "training_seconds": 183.14939403533936
+        },
+        {
+          "epoch": 10,
+          "loss": 3.0283049622147757,
+          "validation_bce": 3.3327142754939874,
+          "macro_auc": 0.7604365043827795,
+          "lr_next": 0.0001,
+          "training_seconds": 183.53188395500183
+        },
+        {
+          "epoch": 11,
+          "loss": 3.0035035544551505,
+          "validation_bce": 3.310905771917672,
+          "macro_auc": 0.7599254266932202,
+          "lr_next": 0.0001,
+          "training_seconds": 187.05159306526184
+        },
+        {
+          "epoch": 12,
+          "loss": 2.977597325969371,
+          "validation_bce": 3.3106824004330515,
+          "macro_auc": 0.7577358617164116,
+          "lr_next": 0.0001,
+          "training_seconds": 191.02394556999207
+        },
+        {
+          "epoch": 13,
+          "loss": 2.9460478096275717,
+          "validation_bce": 3.315100992608117,
+          "macro_auc": 0.7598769761366981,
+          "lr_next": 0.0001,
+          "training_seconds": 182.36110973358154
+        },
+        {
+          "epoch": 14,
+          "loss": 2.9197892755211177,
+          "validation_bce": 3.311258981649128,
+          "macro_auc": 0.7583730500866396,
+          "lr_next": 1e-05,
+          "training_seconds": 180.77947807312012
+        },
+        {
+          "epoch": 15,
+          "loss": 2.881065768365792,
+          "validation_bce": 3.3093512314402695,
+          "macro_auc": 0.7581494234019058,
+          "lr_next": 1e-05,
+          "training_seconds": 180.65929412841797
+        },
+        {
+          "epoch": 16,
+          "loss": 2.8673547210858445,
+          "validation_bce": 3.3274654343772543,
+          "macro_auc": 0.7577332186900749,
+          "lr_next": 1e-05,
+          "training_seconds": 181.14203190803528
+        },
+        {
+          "epoch": 17,
+          "loss": 2.8594264768242397,
+          "validation_bce": 3.3203142105480996,
+          "macro_auc": 0.7574768734978891,
+          "lr_next": 1e-05,
+          "training_seconds": 181.1083071231842
+        },
+        {
+          "epoch": 18,
+          "loss": 2.8620923443857147,
+          "validation_bce": 3.309231411031036,
+          "macro_auc": 0.7584799325682327,
+          "lr_next": 1.0000000000000002e-06,
+          "training_seconds": 181.2390866279602
+        },
+        {
+          "epoch": 19,
+          "loss": 2.8487538507292793,
+          "validation_bce": 3.327825999469908,
+          "macro_auc": 0.7577657818115421,
+          "lr_next": 1.0000000000000002e-06,
+          "training_seconds": 175.83593010902405
+        }
+      ]
+    },
+    {
+      "name": "adapt_lr0001",
+      "initial_lr": 0.0001,
+      "completed_epochs": 0,
+      "planned_min_epochs": 20,
+      "planned_max_epochs": 60,
+      "best_completed_epoch": null,
+      "best_completed_ten_crop_validation_auc": null,
+      "history_aggregate": []
+    }
+  ],
+  "training_patients_overlap_valid": false,
+  "validation_studies": 859,
+  "validation_patients": 228,
+  "incumbent_target_runtime_validation_auc": 0.8111219096556889,
+  "incumbent_user_reported_test_auc": 0.7678,
+  "target_valid_auc": 0.9,
+  "target_reached": false,
+  "target_runtime_final_review_completed": false,
+  "prior_auc_dinov2_queue_paused": true,
+  "new_test_inference_performed": false,
+  "new_hidden_test_result_known": false,
+  "official_website_submission_performed": false,
+  "scope": "In-progress training observations, not a completed comparison. Curves use training runtime; final review separately uses target runtime and actual deployment batch shape."
+}

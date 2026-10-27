@@ -9,14 +9,31 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from src.chexnet import CheXNetImages,load_checkpoint,collect_predictions
+from src.chexnet import CheXNetImages,load_checkpoint
 from src.data import aggregate
 from src.inference import configure_deterministic_inference,runtime_information,model_input_fingerprint
-from src.metrics import evaluate
+from src.metrics import evaluate,submission_probabilities
+from tools.predict_chexnet import predict_images
 
 
 def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def evaluate_checkpoint(path,datasets,device,workers=4):
+    """Use each deployed crop's actual forward shape, including center B=1.
+
+    The training log extracts the center member from a ten-crop batch. CUDA
+    kernels can change with batch shape, so that shortcut is unsuitable for
+    freezing the standalone center-crop deployment.
+    """
+    model,_=load_checkpoint(path,device)
+    result={}
+    for crop,dataset in datasets.items():
+        loader=DataLoader(dataset,batch_size=1,num_workers=workers,pin_memory=device.type=='cuda')
+        result[crop]=predict_images(model,loader,device,crop)
+    del model
+    return result
 
 
 def main():
@@ -35,6 +52,9 @@ def main():
     project=Path(__file__).resolve().parents[1]
     for relative,expected in plan['source_sha256'].items():
         if sha(project/relative)!=expected:raise ValueError('Frozen experiment source changed: '+relative)
+    if (work/'completion_plan.json').is_file():
+        for relative,expected in read(work/'completion_plan.json')['source_sha256'].items():
+            if sha(project/relative)!=expected:raise ValueError('Frozen completion source changed: '+relative)
     output=Path(args.out)
     review=work/'target_runtime_review'
     if output.exists() or review.exists():raise FileExistsError('Preserve earlier review artifacts')
@@ -43,7 +63,8 @@ def main():
     torch.set_num_threads(4)
     device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if device.type=='cpu':torch.backends.mkldnn.enabled=False
-    dataset=CheXNetImages(args.root,args.cache,'valid',mode='ten')
+    datasets={crop:CheXNetImages(args.root,args.cache,'valid',mode=crop) for crop in ['ten','center']}
+    dataset=datasets['ten']
     if dataset.df.Study_id.nunique()!=859 or dataset.df.Subject_id.nunique()!=228:
         raise ValueError('Official validation population differs')
     history_by_run={}
@@ -64,24 +85,23 @@ def main():
             fingerprint=model_input_fingerprint(checkpoint)
             epoch=checkpoint['epoch']
             if fingerprint not in exports:
-                model,_=load_checkpoint(path,device)
-                loader=DataLoader(dataset,batch_size=1,num_workers=4,pin_memory=device.type=='cuda')
-                probabilities=collect_predictions(model,loader,device)
+                probabilities=evaluate_checkpoint(path,datasets,device)
                 exports[fingerprint]=probabilities
                 np.savez_compressed(review/(fingerprint[:16]+'.npz'),**probabilities,
                     image_ids=dataset.df.Dicom_id.to_numpy(dtype=str),metadata=np.array(json.dumps({
                         'model_input_fingerprint':fingerprint,'runtime':runtime_information(device),'batch_size':1,
-                        'validation_csv_sha256':sha(Path(args.root)/'valid.csv')})))
-                del model
+                        'validation_csv_sha256':sha(Path(args.root)/'valid.csv'),
+                        'center_direct_forward':True,'crop_modes':['ten','center']})))
             for crop,image_probabilities in exports[fingerprint].items():
                 _,study,targets=aggregate(dataset.df,image_probabilities,'frontal')
-                metrics=evaluate(targets,study)
+                metrics=evaluate(targets,submission_probabilities(study))
                 results.append({'run':completed['name'],'selection_basis':selection,'epoch':epoch,
                     'crop':crop,'checkpoint_sha256':digest,'model_input_fingerprint':fingerprint,'validation':metrics})
     best=max(results,key=lambda item:item['validation']['macro_auc'])
     report={'source_commit':plan['source_commit'],'runtime':runtime_information(device),'batch_size':1,
         'experiments':results,'best_validation_candidate':best,
         'incumbent_validation_auc':.8111219096556889,'incumbent_user_reported_test_auc':.7678,
+        'center_direct_forward':True,'probabilities_rounded_as_deployed':True,
         'target_valid_auc':.9,'target_met_in_validation':best['validation']['macro_auc']>=.9,
         'new_hidden_test_result_known':False,'official_website_submission_performed':False,
         'training_summary':[{'name':name,'epochs_completed':len(rows),

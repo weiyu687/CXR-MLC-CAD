@@ -66,5 +66,23 @@
     "probability_max_difference": 0.0,
     "full_study_raw_read_and_result_write_included": true,
     "T4_verified": false
+  },
+  "post_training_flow_checks": {
+    "scope": "Synthetic CPU flow checks only; no competition model score or GPU latency measured",
+    "direct_deployed_review_matches_entrypoint": true,
+    "changed_validation_identity_rejected": true,
+    "candidate_export_metrics_rebuilt": true,
+    "changed_package_manifest_file_rejected": true,
+    "isolated_test_only_bundle_replay_exact": true,
+    "archive_crc_and_hashes_verified": true,
+    "official_website_submission_performed": false,
+    "center_review_uses_direct_B1_forward": true,
+    "ten_review_uses_actual_ten_crop_forward": true,
+    "latency_recipe_mismatch_rejected_even_if_manifest_hash_updated": true,
+    "validation_cost_exact_on_synthetic_CPU": true,
+    "incumbent_valid_rebuilt_exact": true,
+    "incumbent_valid_studies": 859,
+    "incumbent_valid_patients": 228,
+    "incumbent_valid_auc": 0.8111219096556889
   }
 }
