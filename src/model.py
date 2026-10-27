@@ -5,6 +5,9 @@ import hashlib
 from pathlib import Path
 
 def build_model(name,pretrained=False):
+    if name in ['dinov2_base_reg_mean','dinov2_base_mean']:
+        from .reference_models import DinoV2MeanClassifier
+        return DinoV2MeanClassifier(pretrained, registers=name=='dinov2_base_reg_mean')
     if name.startswith('chexfusion_'):
         from .reference_models import CheXFusionImage
         catalog = {

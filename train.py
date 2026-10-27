@@ -40,16 +40,19 @@ def main():
     ap.add_argument('--workers', type=int, default=2)
     ap.add_argument('--lr', type=float, default=0.001)
     ap.add_argument('--seed', type=int, default=42)
-    ap.add_argument('--loss', choices=['bce','asl','chexfusion_asl'], default='bce')
+    ap.add_argument('--loss', choices=['bce','asl','chexfusion_asl','inverse_bce'], default='bce')
+    ap.add_argument('--optimizer', choices=['adamw','adam'], default='adamw')
+    ap.add_argument('--schedule', choices=['cosine','constant'], default='cosine')
     ap.add_argument('--selection-aggregation',choices=['mean','max','frontal','weighted','auto'],default='mean')
     ap.add_argument('--holdout-aggregation', choices=['mean','max','frontal','weighted'], default='frontal')
     ap.add_argument('--resume')
     ap.add_argument('--init',help='Initialize from an existing competition checkpoint')
     ap.add_argument('--pretrained',action='store_true',help='Audited non-medical ImageNet weights permitted by official PDF article 1')
-    ap.add_argument('--normalization',choices=['legacy','imagenet'],default='legacy')
+    ap.add_argument('--normalization',choices=['legacy','imagenet','imagenet_equalized','unit_equalized'],default='legacy')
     ap.add_argument('--frontal-training',action='store_true')
     ap.add_argument('--image-training', action='store_true', help='Visit every training image, including lateral views, each epoch')
-    ap.add_argument('--augmentation', choices=['legacy','chexfusion'], default='legacy')
+    ap.add_argument('--frontal-images', action='store_true', help='After patient splitting, use only AP/PA training images')
+    ap.add_argument('--augmentation', choices=['legacy','chexfusion','transfer'], default='legacy')
     ap.add_argument('--regularize',action='store_true')
     ap.add_argument('--mixup',type=float,default=0.)
     ap.add_argument('--mixup-objective',choices=['hard_loss','soft_target'],default='hard_loss',
@@ -70,13 +73,15 @@ def main():
     ap.add_argument('--cuda-memory-fraction',type=float,default=1.,help='Per-process CUDA allocator ceiling')
     ap.add_argument('--horizontal-flip',action=argparse.BooleanOptionalAction,default=True,help='Training only; labels have no side-specific classes')
     args = ap.parse_args()
+    if args.frontal_images and not args.image_training:
+        raise ValueError('--frontal-images requires --image-training')
     if args.image_training and args.frontal_training:
         raise ValueError('Image training visits all views; do not combine with frontal-only study sampling')
     if args.augmentation == 'chexfusion' and (args.regularize or not args.horizontal_flip):
         raise ValueError('Use the published augmentation as a complete sequence')
     if args.pretrained:
         if args.init or args.resume:raise ValueError('Choose pretrained initialization or a competition checkpoint')
-        args.normalization='imagenet'
+        if args.normalization=='legacy':args.normalization='imagenet'
     if args.init:
         initial_config=torch.load(args.init,map_location='cpu',weights_only=False)['config']
         args.normalization=initial_config.get('normalization','legacy')
@@ -132,6 +137,15 @@ def main():
             raise ValueError('The CheXFusion augmentation uses ImageNet normalization')
         from src.paper_augmentation import CheXFusionAugment
         train.transform = CheXFusionAugment(args.size)
+    if args.augmentation == 'transfer':
+        from torchvision import transforms as T
+        from src.preprocessing import equalize_grayscale
+        mean,std=([0.485,0.456,0.406],[0.229,0.224,0.225]) if args.normalization.startswith('imagenet') else (
+            ([0.]*3,[1.]*3) if args.normalization=='unit_equalized' else ([.5]*3,[.25]*3))
+        train.transform=T.Compose([T.Resize((args.size,args.size)),
+            *([T.Lambda(equalize_grayscale)] if args.normalization.endswith('_equalized') else []),
+            *([T.RandomHorizontalFlip()] if args.horizontal_flip else []),
+            T.RandomRotation(7),T.ToTensor(),T.Normalize(mean,std)])
     valid = Images(args.root,args.cache,'valid',args.size,normalization=args.normalization)
     holdout=None
     if args.patient_holdout:
@@ -149,8 +163,11 @@ def main():
             train.groups=[g for g in train.groups if train.df.iloc[g[0]].Subject_id not in held]
         assert not set(train.df.iloc[[g[0] for g in train.groups]].Subject_id)&set(holdout.df.Subject_id)
         (out/'holdout_patients.json').write_text(json.dumps(sorted(held)),encoding='utf-8')
+    if args.frontal_images:
+        train.df=train.df[train.df.ViewPosition.isin(['AP','PA','PA LLD'])].reset_index(drop=True)
+        train.groups=[g.index.tolist() for _,g in train.df.groupby('Study_id',sort=False)]
     kwargs = dict(batch_size=args.batch_size,num_workers=args.workers,pin_memory=device.type=='cuda',persistent_workers=args.workers>0)
-    training_random = {'generator': torch.Generator().manual_seed(args.seed+731)} if args.augmentation=='chexfusion' else {}
+    training_random = {'generator': torch.Generator().manual_seed(args.seed+731)} if args.augmentation!='legacy' else {}
     tl = DataLoader(train,shuffle=True,drop_last=True,**training_random,**kwargs)
     vl = DataLoader(valid,shuffle=False,**kwargs)
     hl=DataLoader(holdout,shuffle=False,**kwargs) if holdout is not None else None
@@ -175,7 +192,8 @@ def main():
     for p in ema.parameters(): p.requires_grad_(False)
     original_trainable={name for name,param in model.named_parameters() if param.requires_grad}
     parameters=optimizer_groups(model,args.head_lr_mult,args.no_decay_bias_norm)
-    optimizer = torch.optim.AdamW(parameters,lr=args.lr,weight_decay=args.weight_decay)
+    optimizer_type=torch.optim.AdamW if args.optimizer=='adamw' else torch.optim.Adam
+    optimizer = optimizer_type(parameters,lr=args.lr,weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler('cuda', enabled=device.type=='cuda')
     criterion = AsymmetricLoss() if args.loss=='asl' else torch.nn.BCEWithLogitsLoss()
     if args.loss == 'chexfusion_asl':
@@ -197,6 +215,19 @@ def main():
         pos=targets.sum(0)
         weights=np.sqrt((len(targets)-pos)/np.maximum(pos,1)).clip(1,5)
         criterion=torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weights,dtype=torch.float32,device=device))
+    if args.loss=='inverse_bce':
+        if args.positive_weight:raise ValueError('Use one BCE weighting scheme')
+        targets=np.stack(train.df.target if args.image_training else train.df.iloc[[g[0] for g in train.groups]].target)
+        positives=targets.sum(0)
+        if (positives<=0).any() or (positives>=len(targets)).any():
+            raise ValueError('BCE weighting requires training positives and negatives for every label')
+        weights=(len(targets)-positives)/positives
+        criterion=torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(weights,dtype=torch.float32,device=device))
+        provenance['loss_reference']={'paper':'https://doi.org/10.1038/s43856-026-01897-9',
+            'author_file':'https://github.com/tayebiarasteh/vit-med/blob/main/data/data_provider.py',
+            'formula':'(training_count-positive_count)/positive_count', 'class_counts':positives.tolist(),
+            'total_count':len(targets),'weights':weights.tolist(),'heldout_patients_excluded':holdout is not None}
+        (out/'provenance.json').write_text(json.dumps(provenance,indent=2),encoding='utf-8')
     best, start,stale_epochs = -1., 0,0
     if args.resume:
         ck = torch.load(args.resume,map_location='cpu',weights_only=False)
@@ -224,7 +255,7 @@ def main():
         print('TRAINING_STAGE '+('classifier_warmup' if head_only else 'full_finetune'),flush=True)
         for step,(x,y,_) in enumerate(tl):
             progress=(epoch+step/len(tl))
-            lr=learning_rate(progress,args.epochs,args.lr,args.warmup_epochs,args.min_lr_ratio)
+            lr=args.lr if args.schedule=='constant' else learning_rate(progress,args.epochs,args.lr,args.warmup_epochs,args.min_lr_ratio)
             for group in optimizer.param_groups: group['lr']=lr*group.get('lr_scale',1.)
             x=x.to(device,non_blocking=True).to(memory_format=torch.channels_last); y=y.to(device,non_blocking=True)
             paired_targets=None;lam=None

@@ -9,7 +9,7 @@ import torch
 from PIL import Image, ImageOps
 from torch.utils.data import Dataset
 from torchvision import transforms as T
-from .preprocessing import decode_original_like_cache
+from .preprocessing import decode_original_like_cache, equalize_grayscale
 
 LABELS = ['Enlarged Cardiomediastinum', 'Pneumothorax', 'Consolidation',
           'Pneumonia', 'Edema', 'Cardiomegaly', 'Atelectasis', 'Lung Opacity',
@@ -43,16 +43,18 @@ class Images(Dataset):
                T.RandomAffine(6, translate=(0.025, 0.025)),
                T.ColorJitter(brightness=0.12, contrast=0.12)] if train else [T.Resize((size, size))]
         if train and horizontal_flip:aug.insert(1,T.RandomHorizontalFlip())
-        if normalization not in ['legacy','imagenet']:raise ValueError('Unknown normalization')
-        mean,std=([0.485,0.456,0.406],[0.229,0.224,0.225]) if normalization=='imagenet' else ([0.5]*3,[0.25]*3)
-        self.transform = T.Compose(aug + [T.ToTensor(), T.Normalize(mean,std)])
+        if normalization not in ['legacy','imagenet','imagenet_equalized','unit_equalized']:raise ValueError('Unknown normalization')
+        mean,std=([0.485,0.456,0.406],[0.229,0.224,0.225]) if normalization.startswith('imagenet') else (
+            ([0.]*3,[1.]*3) if normalization=='unit_equalized' else ([0.5]*3,[0.25]*3))
+        equalization=[T.Lambda(equalize_grayscale)] if normalization.endswith('_equalized') else []
+        self.transform = T.Compose(aug + equalization + [T.ToTensor(), T.Normalize(mean,std)])
         if train and regularize:
             self.transform = T.Compose([
                 T.RandomResizedCrop(size, scale=(0.92,1.0),ratio=(0.95,1.05)),
                 T.RandomAffine(5,translate=(0.02,0.02),scale=(0.95,1.05)),
                 *([T.RandomHorizontalFlip()] if horizontal_flip else []),
                 T.ColorJitter(brightness=0.2,contrast=0.2),
-                T.ToTensor(),T.Normalize(mean,std),
+                *equalization,T.ToTensor(),T.Normalize(mean,std),
                 T.RandomErasing(p=0.2,scale=(0.01,0.04),ratio=(0.5,2.0),value=0)])
     def __len__(self):
         return len(self.groups) if self.study_sampling else len(self.df)

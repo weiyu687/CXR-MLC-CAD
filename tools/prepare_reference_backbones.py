@@ -15,6 +15,14 @@ import timm
 
 
 CATALOG={
+    'dinov2_base':{
+        'model':'vit_base_patch14_dinov2.lvd142m',
+        'url':'https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth',
+        'data':'LVD-142M; non-medical generic visual pretraining',
+        'model_card':'https://github.com/facebookresearch/dinov2/blob/main/MODEL_CARD.md',
+        'license':'Apache-2.0',
+        'license_url':'https://github.com/facebookresearch/dinov2/blob/main/LICENSE',
+        'kwargs':{'dynamic_img_size':True,'dynamic_img_pad':True},'sizes':[224,392]},
     'convnext_base_22k':{
         'model':'convnext_base.fb_in22k',
         'url':'https://dl.fbaipublicfiles.com/convnext/convnext_base_22k_224.pth',

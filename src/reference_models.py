@@ -146,3 +146,40 @@ class CheXFusionStudy(nn.Module):
         features = selected.new_zeros(batch, views, *selected.shape[1:])
         features[valid_views] = selected
         return self.fuse_features(features, valid_views)
+
+
+class DinoV2MeanClassifier(nn.Module):
+    """Generic DINOv2 + linear readout, following vit-med's token mean.
+
+    The non-register variant matches the paper's DINOv2-base. The optional
+    register variant excludes its four registers from the token mean.
+    """
+    def __init__(self, pretrained=False, registers=True):
+        super().__init__()
+        url = 'https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_reg4_pretrain.pth'
+        digest = '73182a088cf94833c94b1666d1c99e02fe87e2007bff57b564fb6206e25dba71'
+        model_name='vit_base_patch14_reg4_dinov2.lvd142m'
+        if not registers:
+            url='https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth'
+            digest='0b8b82f85de91b424aded121c7e1dcc2b7bc6d0adeea651bf73a13307fad8c73'
+            model_name='vit_base_patch14_dinov2.lvd142m'
+        kwargs = {}
+        self.pretraining_provenance = None
+        if pretrained:
+            path = Path(torch.hub.get_dir())/'checkpoints'/url.rsplit('/',1)[-1]
+            if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:
+                raise ValueError('Audited generic DINOv2 weight missing or changed')
+            kwargs['pretrained_cfg_overlay'] = {'file': str(path), 'hf_hub_id': None}
+            self.pretraining_provenance = {'name': 'dinov2_base_reg_mean' if registers else 'dinov2_base_mean',
+                'weights': model_name, 'url': url, 'sha256': digest,
+                'cached_file': str(path), 'training_data': 'LVD-142M (generic non-medical visual pretraining)',
+                'license_url': 'https://github.com/facebookresearch/dinov2/blob/main/LICENSE',
+                'documentation': 'https://github.com/facebookresearch/dinov2/blob/main/MODEL_CARD.md'}
+        self.backbone = timm.create_model(model_name,
+            pretrained=pretrained, num_classes=0, dynamic_img_size=True, dynamic_img_pad=True, **kwargs)
+        self.classifier = nn.Linear(768, 10)
+
+    def forward(self, x):
+        tokens = self.backbone.forward_features(x)
+        selected = torch.cat((tokens[:, :1], tokens[:, self.backbone.num_prefix_tokens:]), dim=1)
+        return self.classifier(selected.mean(dim=1))
