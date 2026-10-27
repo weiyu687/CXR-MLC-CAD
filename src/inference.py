@@ -33,6 +33,8 @@ def model_input_fingerprint(checkpoint):
 def load_deployed_model(checkpoint,device):
     from .model import build_model
     ck=torch.load(checkpoint,map_location='cpu',weights_only=False)
+    if ck.get('config',{}).get('preprocessing','').startswith('chexnet-'):
+        raise ValueError('Use python -m tools.predict_chexnet to preserve CheXNet RGB/256 and multi-crop preprocessing')
     model=build_model(ck['config']['model'])
     model.load_state_dict(ck['state_dict'],strict=True)
     return model.to(device,memory_format=deployment_memory_format(device)).eval(),ck

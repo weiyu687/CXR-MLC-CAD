@@ -1,0 +1,60 @@
+{
+  "torch28": {
+    "torch": "2.8.0+cu126",
+    "repo_tencrop_tensors_exact": true,
+    "ten_label_architecture_probability_parity": true,
+    "stable_bce_loss_and_gradient_parity": true,
+    "probabilities_averaged_after_sigmoid": true,
+    "center_crop_member_identified": true,
+    "raw_and_lossless_cache_tensors_exact": true,
+    "frontal_training_selection": true,
+    "scope": "Synthetic CPU checks; no competition score measured or medical checkpoint loaded"
+  },
+  "torch210": {
+    "torch": "2.10.0+cu126",
+    "repo_tencrop_tensors_exact": true,
+    "ten_label_architecture_probability_parity": true,
+    "stable_bce_loss_and_gradient_parity": true,
+    "probabilities_averaged_after_sigmoid": true,
+    "center_crop_member_identified": true,
+    "raw_and_lossless_cache_tensors_exact": true,
+    "frontal_training_selection": true,
+    "scope": "Synthetic CPU checks; no competition score measured or medical checkpoint loaded"
+  },
+  "entrypoint": {
+    "CPU": true,
+    "synthetic_epochs_completed": 2,
+    "training_and_tencrop_validation_completed": true,
+    "loss_and_auc_checkpoints_saved": true
+  },
+  "target_runtime_replay": {
+    "raw_and_lossless_cache_probability_max_difference": 0.0,
+    "CPU_target_runtime_replay_exact": true,
+    "scope": "Synthetic fixtures only, no new competition score"
+  },
+  "resource_probe": {
+    "model": "chexnet_densenet121",
+    "size": 224,
+    "batch_size": 16,
+    "real_data": false,
+    "workers": 4,
+    "steps": 4,
+    "warmup": 2,
+    "images_per_second": 113.83008902758,
+    "mean_step_seconds": 0.14056037499999974,
+    "loader_wait_seconds": 0,
+    "peak_allocated_mib": 1175.06298828125,
+    "peak_reserved_mib": 1292.0,
+    "device": "NVIDIA GeForce RTX 4070 SUPER",
+    "torch": "2.8.0+cu126",
+    "python": "3.9.25",
+    "scope": "Full train stage including EMA and AdamW state; random initialization; no checkpoint saved"
+  },
+  "scope": "Correctness and resources only; no new competition score",
+  "frozen_test_only_replay": {
+    "test_only_root_has_no_valid_metadata": true,
+    "probability_max_difference": 0.0,
+    "synthetic_submission_rows": 40,
+    "no_competition_submission_performed": true
+  }
+}

@@ -1,5 +1,7 @@
 # CXR-MLC-CAD
 
+**当前方向（2026-10-27）**：按用户要求暂停AUC/PESG与DINOv2迁移队列，改为适配 [arnoweng/CheXNet](https://github.com/arnoweng/CheXNet)。已补齐十标签DenseNet121训练、原仓库RGB/256十裁剪评估、原图/无损缓存一致性核对；计划比较0.001与0.0001初始学习率。只使用通用ImageNet初始化和官方train，未使用仓库的医学训练权重。适配范围、程序核对和实验状态见 [CheXNet记录](docs/CHEXNET_ADAPTATION.md)。此前CheXFusion四组已完成，验证未超过原交付；原始验证AUC≥0.90目标尚未达到。
+
 **线上成绩更新（2026-10-26）**：用户确认 `round2_bundle/submission.csv` 的测试 AUC 为 **0.7678**，排名 **338/593**；对应本地验证 AUC 为 **0.811122**。下一阶段目标为原始官方验证集 AUC **≥0.90**，尚未达到。后续优先复现与MIMIC-CXR/CheXpert多标签、检查级任务对齐的强方法，具体采用范围和实现差异见 [任务对齐复现记录](docs/MATCHED_SOTA_REPRODUCTION.md)，历史线上成绩见 [反馈记录](docs/ONLINE_FEEDBACK.md)。
 
 **已验证交付（2026-10-26）**：`submission/round2_bundle/submission.csv` 的真实测试 AUC 为 **0.7678**，完整包为 `submission/CXR-MLC-CAD_round2_20261026.zip`。统一 PyTorch 2.10、batch=1 下，DenseNet121 + EfficientNetV2-S + ResNet18 的固定逐类融合验证 Macro-AUC **0.811122**、调阈值 Macro-F1 **0.496667**；旧交付同条件 AUC **0.788140**。全测试原图复现概率最大差 **0.0**，本机按 5 张预热 / 100 输入 / 3 轮计时平均 **78.87ms**，T4 未实测。详见 [第二轮交付结果](docs/ROUND2_FINAL_RESULTS.md)、[研究报告](docs/RESEARCH_REVIEW.md)和 [开发记录](docs/DEVELOPMENT_20261025.md)。
